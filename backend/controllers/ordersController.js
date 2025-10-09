@@ -430,6 +430,33 @@ const returnItem = async (req, res) => {
       });
     }
 
+    // ===== CALCULATE REFUND AMOUNT (for display purposes) =====
+    // Calculate the price per unit (including VAT)
+    const pricePerUnit = returnedItem.unitPrice; // This already includes VAT
+    
+    // Calculate the total refund amount for returned quantity
+    const returnAmount = pricePerUnit * returnQuantity;
+    
+    // Calculate VAT amount per unit
+    const vatAmountPerUnit = (returnedItem.vatPercentage / 100) * pricePerUnit;
+    const basePricePerUnit = pricePerUnit - vatAmountPerUnit;
+    
+    // Calculate refund breakdown
+    const refundBaseAmount = basePricePerUnit * returnQuantity;
+    const refundVatAmount = vatAmountPerUnit * returnQuantity;
+    
+    console.log(`💰 Refund Calculation:`);
+    console.log(`   Unit Price (with VAT): ${pricePerUnit}`);
+    console.log(`   Base Price per unit: ${basePricePerUnit.toFixed(2)}`);
+    console.log(`   VAT per unit: ${vatAmountPerUnit.toFixed(2)}`);
+    console.log(`   Return Quantity: ${returnQuantity}`);
+    console.log(`   Refund Base Amount: ${refundBaseAmount.toFixed(2)}`);
+    console.log(`   Refund VAT Amount: ${refundVatAmount.toFixed(2)}`);
+    console.log(`   Total Return Amount: ${returnAmount.toFixed(2)}`);
+
+    // Store old final total for logging
+    const oldFinalTotal = order.finalTotal;
+
     // Update returned quantity
     const newReturnedQuantity = currentReturnedQty + returnQuantity;
     order.items[itemIndex].returnedQuantity = newReturnedQuantity;
@@ -444,8 +471,14 @@ const returnItem = async (req, res) => {
       order.items[itemIndex].returnedAt = new Date();
     }
 
-    // Save the order (this will trigger pre-save middleware to recalculate totals)
+    // Save the order - pre-save middleware will automatically recalculate totals
+    // accounting for returnedQuantity
     await order.save();
+    
+    console.log(`📊 Order Totals Updated by Pre-Save Middleware:`);
+    console.log(`   Old Final Total: ${oldFinalTotal.toFixed(2)}`);
+    console.log(`   New Final Total: ${order.finalTotal.toFixed(2)}`);
+    console.log(`   Reduction: ${(oldFinalTotal - order.finalTotal).toFixed(2)}`);
 
     // Update the machine stock - increase quantity
     const machine = await Machine.findById(machineId);
@@ -455,6 +488,15 @@ const returnItem = async (req, res) => {
       order.items[itemIndex].returnedQuantity = currentReturnedQty;
       order.items[itemIndex].returned = false;
       order.items[itemIndex].returnedAt = undefined;
+      
+      // Restore old totals
+      order.subtotal = oldSubtotal;
+      order.vatAmount = oldVatAmount;
+      order.totalBeforeDiscount = oldTotalBeforeDiscount;
+      order.discountAmount = oldDiscountAmount;
+      order.finalTotal = oldFinalTotal;
+      order.total = oldSubtotal + order.extrasTotal;
+      
       await order.save();
       
       return res.status(404).json({
@@ -467,7 +509,7 @@ const returnItem = async (req, res) => {
     machine.quantity += returnQuantity;
     await machine.save();
 
-    console.log(`✅ Item returned: ${returnedItem.name} (Qty: ${returnQuantity} of ${returnedItem.quantity})`);
+    console.log(`✅ Item returned: ${returnedItem.name} (Qty: ${returnQuantity} of ${returnedItem.quantity + newReturnedQuantity})`);
     console.log(`📦 Machine stock updated: ${machine.name} - New quantity: ${machine.quantity}`);
 
     // Fetch updated order with populated data
@@ -477,17 +519,28 @@ const returnItem = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Item returned successfully',
+      message: 'Item returned successfully and order total updated',
       data: {
         order: updatedOrder,
         returnedItem: {
           name: returnedItem.name,
-          quantity: returnedItem.quantity,
-          refundAmount: returnedItem.totalWithVAT || returnedItem.subtotal
+          returnedQuantity: returnQuantity,
+          totalReturnedSoFar: newReturnedQuantity,
+          originalQuantity: returnedItem.quantity,
+          refundAmount: returnAmount.toFixed(2),
+          refundBreakdown: {
+            baseAmount: refundBaseAmount.toFixed(2),
+            vatAmount: refundVatAmount.toFixed(2)
+          }
         },
         updatedStock: {
           machineName: machine.name,
           newQuantity: machine.quantity
+        },
+        orderTotals: {
+          oldFinalTotal: oldFinalTotal.toFixed(2),
+          newFinalTotal: order.finalTotal.toFixed(2),
+          totalReduction: (oldFinalTotal - order.finalTotal).toFixed(2)
         }
       }
     });
