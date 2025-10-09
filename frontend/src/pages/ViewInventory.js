@@ -23,8 +23,11 @@ const ViewInventory = () => {
   const [selectedMachine, setSelectedMachine] = useState(null);
   const [salesStats, setSalesStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
+  // Server-side pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(20);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalMachines, setTotalMachines] = useState(0);
+  const itemsPerPage = 20;
   const [editFormData, setEditFormData] = useState({
     itemId: '',
     name: '',
@@ -37,25 +40,56 @@ const ViewInventory = () => {
   const categories = ['all', 'Pumps', 'Motors', 'Pipes', 'Bearings', 'Valves', 'Filters', 'Seals', 'Tools', 'Electronics', 'Other'];
   const statusOptions = ['all', 'in-stock', 'low-stock', 'out-of-stock'];
 
-  // Fetch machines from database
+  // Fetch machines from database with pagination
   useEffect(() => {
     fetchMachines();
-  }, []);
+  }, [currentPage, searchTerm, filterCategory, filterStatus]); // Reload when filters change
 
   const fetchMachines = async () => {
     try {
       setLoading(true);
-      // Use a reasonable limit of 200 for better performance while still showing most inventory
-      const response = await machineService.getAllMachines({ limit: 200 });
+      
+      const params = {
+        page: currentPage,
+        limit: itemsPerPage
+      };
+      
+      // Add search parameter if search term exists
+      if (searchTerm.trim()) {
+        params.search = searchTerm.trim();
+      }
+      
+      // Add category filter if not 'all'
+      if (filterCategory !== 'all') {
+        params.category = filterCategory;
+      }
+      
+      // Add status filter if not 'all'
+      if (filterStatus !== 'all') {
+        params.status = filterStatus;
+      }
+      
+      const response = await machineService.getAllMachines(params);
       console.log('API Response:', response); // Debug log
       
-      // The backend returns machines in response.data
-      const machinesData = response?.data || [];
-      setMachines(machinesData);
+      if (response?.success) {
+        // Backend returns paginated response
+        setMachines(response.data || []);
+        setTotalPages(response.pages || 1);
+        setTotalMachines(response.total || 0);
+      } else {
+        // Fallback for non-paginated response
+        const machinesData = response?.data || [];
+        setMachines(machinesData);
+        setTotalPages(1);
+        setTotalMachines(machinesData.length);
+      }
       setError(null);
     } catch (err) {
       setError('Failed to fetch machines. Please try again.');
-      setMachines([]); // Ensure machines is always an array even on error
+      setMachines([]);
+      setTotalPages(1);
+      setTotalMachines(0);
       console.error('Error fetching machines:', err);
     } finally {
       setLoading(false);
@@ -78,40 +112,33 @@ const ViewInventory = () => {
     }
   };
 
-  const filteredItems = Array.isArray(machines) ? machines.filter(item => {
-    const matchesSearch = item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.itemId?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = filterCategory === 'all' || item.category === filterCategory;
-    
-    // Status filtering logic
-    const itemStatus = getStatus(item.quantity);
-    let matchesStatus = false;
-    if (filterStatus === 'all') {
-      matchesStatus = true;
-    } else if (filterStatus === 'in-stock') {
-      matchesStatus = itemStatus === 'In Stock';
-    } else if (filterStatus === 'low-stock') {
-      matchesStatus = itemStatus === 'Low Stock';
-    } else if (filterStatus === 'out-of-stock') {
-      matchesStatus = itemStatus === 'Out of Stock';
-    }
-    
-    return matchesSearch && matchesCategory && matchesStatus;
-  }) : [];
+  // Handle search and filter changes
+  const handleSearchChange = (value) => {
+    setSearchTerm(value);
+    setCurrentPage(1); // Reset to first page when searching
+  };
 
-  // Pagination calculations
-  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+  const handleCategoryChange = (category) => {
+    setFilterCategory(category);
+    setCurrentPage(1); // Reset to first page when filtering
+  };
+
+  const handleStatusChange = (status) => {
+    setFilterStatus(status);
+    setCurrentPage(1); // Reset to first page when filtering
+  };
+
+  // Server-side pagination means we display what we receive
+  const displayedMachines = Array.isArray(machines) ? machines : [];
+  
+  // Pagination calculations for display
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentItems = filteredItems.slice(startIndex, endIndex);
-
-  // Reset to page 1 when search or filter changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, filterCategory, filterStatus]);
+  const endIndex = Math.min(startIndex + itemsPerPage, totalMachines);
 
   const handlePageChange = (pageNumber) => {
-    setCurrentPage(pageNumber);
+    if (pageNumber >= 1 && pageNumber <= totalPages) {
+      setCurrentPage(pageNumber);
+    }
   };
 
   const handlePrevPage = () => {
@@ -181,7 +208,7 @@ const ViewInventory = () => {
       await machineService.updateMachine(selectedMachine._id, updatedData);
       setShowEditModal(false);
       setSelectedMachine(null);
-      await fetchMachines(); // Refresh the list
+      fetchMachines(); // Refresh the current page
       alert('Machine updated successfully!');
     } catch (err) {
       alert('Failed to update machine. Please try again.');
@@ -193,7 +220,13 @@ const ViewInventory = () => {
     if (window.confirm(`Are you sure you want to delete ${machine.name}?`)) {
       try {
         await machineService.deleteMachine(machine._id);
-        await fetchMachines(); // Refresh the list
+        
+        // If deleting the last item on current page and we're not on page 1, go to previous page
+        if (displayedMachines.length === 1 && currentPage > 1) {
+          setCurrentPage(currentPage - 1);
+        } else {
+          fetchMachines(); // Refresh the current page
+        }
         alert('Machine deleted successfully!');
       } catch (err) {
         alert('Failed to delete machine. Please try again.');
@@ -229,7 +262,7 @@ const ViewInventory = () => {
               type="text"
               placeholder="Search by item name or ID..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50"
             />
           </div>
@@ -239,7 +272,7 @@ const ViewInventory = () => {
             <FunnelIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
             <select
               value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
+              onChange={(e) => handleCategoryChange(e.target.value)}
               className="pl-10 pr-8 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50"
             >
               {categories.map(category => (
@@ -255,7 +288,7 @@ const ViewInventory = () => {
             <FunnelIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
             <select
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
+              onChange={(e) => handleStatusChange(e.target.value)}
               className="pl-10 pr-8 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50"
             >
               {statusOptions.map(status => (
@@ -312,7 +345,7 @@ const ViewInventory = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {currentItems.map((item) => (
+                {displayedMachines.map((item) => (
                   <tr key={item._id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4 text-sm font-medium text-slate-800">{item.itemId}</td>
                     <td className="px-6 py-4 text-sm text-slate-800">{item.name}</td>
@@ -356,27 +389,25 @@ const ViewInventory = () => {
             </table>
           </div>
 
-          {filteredItems.length === 0 && machines.length > 0 && (
+          {displayedMachines.length === 0 && !loading && (
             <div className="text-center py-12">
-              <p className="text-slate-500 text-lg">No items found matching your criteria.</p>
-            </div>
-          )}
-
-          {machines.length === 0 && !loading && (
-            <div className="text-center py-12">
-              <p className="text-slate-500 text-lg">No machines found in inventory.</p>
+              <p className="text-slate-500 text-lg">
+                {searchTerm || filterCategory !== 'all' || filterStatus !== 'all' 
+                  ? 'No items found matching your criteria.' 
+                  : 'No machines found in inventory.'}
+              </p>
             </div>
           )}
         </div>
       )}
 
       {/* Pagination */}
-      {!loading && !error && filteredItems.length > 0 && (
+      {!loading && !error && totalMachines > 0 && (
         <div className="bg-white/60 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-200/50 p-6 mt-6">
           <div className="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
             {/* Results Info */}
             <div className="text-sm text-slate-600">
-              Showing {startIndex + 1} to {Math.min(endIndex, filteredItems.length)} of {filteredItems.length} results
+              Showing {startIndex + 1} to {endIndex} of {totalMachines} results
             </div>
 
             {/* Pagination Controls */}

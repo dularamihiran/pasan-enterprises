@@ -52,36 +52,159 @@ const PastOrders = () => {
   const [returnModalData, setReturnModalData] = useState(null); // {orderId, machineId, itemName, maxQty, currentReturned}
   const [returnQuantity, setReturnQuantity] = useState(1); // Quantity to return
   
-  // Pagination states
+  // Server-side pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const ordersPerPage = 10;
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [allTimeOrdersCount, setAllTimeOrdersCount] = useState(0);
+  const [thisYearRevenue, setThisYearRevenue] = useState(0);
+  const ordersPerPage = 20;
 
-  // Load orders from backend
+  // Load orders from backend with pagination
   useEffect(() => {
     loadOrders();
-  }, []);
+  }, [currentPage, searchTerm, fromDate, toDate]); // Reload when filters change
+
+  // Load overall statistics on component mount
+  useEffect(() => {
+    loadOverallStats();
+  }, []); // Only on mount
 
   const loadOrders = async () => {
     try {
       setLoading(true);
       setError('');
-      const response = await pastOrdersAPI.getAll({ limit: 500 }); // Request a high limit to get all orders
+      
+      // If we have date filters or search, we need to get more data to filter properly
+      // Since backend might not support server-side date filtering yet
+      const hasFilters = searchTerm.trim() || fromDate || toDate;
+      
+      const params = {
+        page: hasFilters ? 1 : currentPage,
+        limit: hasFilters ? 1000 : ordersPerPage // Get more if filtering
+      };
+      
+      // Add search parameter if search term exists and backend supports it
+      if (searchTerm.trim()) {
+        params.search = searchTerm.trim();
+      }
+      
+      const response = await pastOrdersAPI.getAll(params);
       console.log('Orders API Response:', response.data);
       
       if (response.data.success) {
-        const ordersData = response.data.data || [];
+        let ordersData = response.data.data || [];
+        
+        // Client-side filtering for dates if backend doesn't support it
+        if (hasFilters) {
+          ordersData = ordersData.filter(order => {
+            const matchesSearch = !searchTerm.trim() || 
+              order.orderId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              order.customerInfo?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              order.customerInfo?.phone?.includes(searchTerm);
+            
+            let matchesDateRange = true;
+            if (fromDate || toDate) {
+              const orderDate = new Date(order.createdAt);
+              
+              if (fromDate) {
+                const fromDateTime = new Date(fromDate);
+                fromDateTime.setHours(0, 0, 0, 0);
+                matchesDateRange = matchesDateRange && orderDate >= fromDateTime;
+              }
+              
+              if (toDate) {
+                const toDateTime = new Date(toDate);
+                toDateTime.setHours(23, 59, 59, 999);
+                matchesDateRange = matchesDateRange && orderDate <= toDateTime;
+              }
+            }
+            
+            return matchesSearch && matchesDateRange;
+          });
+          
+          // Apply pagination manually for filtered results
+          const totalFiltered = ordersData.length;
+          const startIndex = (currentPage - 1) * ordersPerPage;
+          const endIndex = startIndex + ordersPerPage;
+          ordersData = ordersData.slice(startIndex, endIndex);
+          
+          setTotalPages(Math.ceil(totalFiltered / ordersPerPage));
+          setTotalOrders(totalFiltered);
+        } else {
+          // No filters, use server pagination
+          setTotalPages(response.data.pages || 1);
+          setTotalOrders(response.data.total || 0);
+        }
+        
         setOrders(Array.isArray(ordersData) ? ordersData : []);
+        
+        // Set all-time orders count (for when no filters are applied)
+        if (!searchTerm.trim() && !fromDate && !toDate) {
+          setAllTimeOrdersCount(response.data.total || 0);
+        }
       } else {
         setError('Failed to load orders');
         setOrders([]);
+        setTotalPages(1);
+        setTotalOrders(0);
       }
     } catch (err) {
       console.error('Error loading orders:', err);
       const errorInfo = handleApiError(err);
       setError(errorInfo.message || 'Failed to load orders');
       setOrders([]);
+      setTotalPages(1);
+      setTotalOrders(0);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadOverallStats = async () => {
+    try {
+      // Get total orders count (no pagination, no filters)
+      const allOrdersResponse = await pastOrdersAPI.getAll({ page: 1, limit: 1 });
+      if (allOrdersResponse.data.success) {
+        setAllTimeOrdersCount(allOrdersResponse.data.total || 0);
+      }
+
+      // Get this year's revenue - get all orders and filter by year
+      const currentYear = new Date().getFullYear();
+      
+      try {
+        // Get all orders (or a large number) to calculate this year's revenue
+        const allOrdersForRevenue = await pastOrdersAPI.getAll({ 
+          limit: 2000 // Get a large number to ensure we get most orders
+        });
+        
+        if (allOrdersForRevenue.data.success) {
+          const allOrders = allOrdersForRevenue.data.data || [];
+          console.log('All orders for revenue calculation:', allOrders.length);
+          
+          // Filter orders for this year and calculate revenue
+          const thisYearOrders = allOrders.filter(order => {
+            const orderYear = new Date(order.createdAt).getFullYear();
+            return orderYear === currentYear;
+          });
+          
+          console.log('This year orders:', thisYearOrders.length);
+          
+          const yearRevenue = thisYearOrders.reduce((sum, order) => {
+            const orderTotal = order.finalTotal || order.total || 0;
+            return sum + orderTotal;
+          }, 0);
+          
+          console.log('This year revenue:', yearRevenue);
+          setThisYearRevenue(yearRevenue);
+        }
+      } catch (yearErr) {
+        console.error('Error loading year revenue:', yearErr);
+        setThisYearRevenue(0);
+      }
+    } catch (err) {
+      console.error('Error loading overall stats:', err);
+      // Don't show error to user for stats, just log it
     }
   };
 
@@ -128,20 +251,27 @@ const PastOrders = () => {
       });
       
       if (response.data.success) {
+        const orderTotals = response.data.data.orderTotals || {};
+        const refundInfo = response.data.data.returnedItem || {};
+        
         alert(
           `✅ Item returned successfully!\n\n` +
           `Item: ${itemName}\n` +
           `Returned Quantity: ${returnQuantity}\n` +
-          `Stock Updated: ${response.data.data.updatedStock.machineName} (+${returnQuantity})`
+          `Stock Updated: ${response.data.data.updatedStock.machineName} (+${returnQuantity})\n\n` +
+          `💰 Order Total Updated:\n` +
+          `Old Total: LKR ${orderTotals.oldFinalTotal || 'N/A'}\n` +
+          `New Total: LKR ${orderTotals.newFinalTotal || 'N/A'}\n` +
+          `Refund Amount: LKR ${refundInfo.refundAmount || 'N/A'}`
         );
         
-        // Refresh orders list
-        await loadOrders();
-        
-        // Update selected order if it's the one being viewed
+        // Update selected order FIRST if it's the one being viewed
         if (selectedOrder && selectedOrder._id === orderId) {
           setSelectedOrder(response.data.data.order);
         }
+        
+        // Then refresh orders list to update the table
+        await loadOrders();
       } else {
         alert('Failed to return item: ' + (response.data.message || 'Unknown error'));
       }
@@ -155,42 +285,28 @@ const PastOrders = () => {
     }
   };
 
-  const filteredOrders = Array.isArray(orders) ? orders.filter(order => {
-    const matchesSearch = 
-      order.orderId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customerInfo?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customerInfo?.phone?.includes(searchTerm);
-    
-    let matchesDateRange = true;
-    if (fromDate || toDate) {
-      const orderDate = new Date(order.createdAt);
-      
-      if (fromDate) {
-        const fromDateTime = new Date(fromDate);
-        fromDateTime.setHours(0, 0, 0, 0);
-        matchesDateRange = matchesDateRange && orderDate >= fromDateTime;
-      }
-      
-      if (toDate) {
-        const toDateTime = new Date(toDate);
-        toDateTime.setHours(23, 59, 59, 999);
-        matchesDateRange = matchesDateRange && orderDate <= toDateTime;
-      }
-    }
-    
-    return matchesSearch && matchesDateRange;
-  }) : [];
+  // Handle search and filter changes
+  const handleSearchChange = (value) => {
+    setSearchTerm(value);
+    setCurrentPage(1); // Reset to first page when searching
+  };
 
-  // Pagination calculations
-  const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
+  const handleFromDateChange = (date) => {
+    setFromDate(date);
+    setCurrentPage(1); // Reset to first page when filtering
+  };
+
+  const handleToDateChange = (date) => {
+    setToDate(date);
+    setCurrentPage(1); // Reset to first page when filtering
+  };
+
+  // Server-side pagination means we display what we receive
+  const displayedOrders = Array.isArray(orders) ? orders : [];
+  
+  // Pagination calculations for display
   const startIndex = (currentPage - 1) * ordersPerPage;
-  const endIndex = startIndex + ordersPerPage;
-  const currentOrders = filteredOrders.slice(startIndex, endIndex);
-
-  // Reset to page 1 when search or filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, fromDate, toDate]);
+  const endIndex = Math.min(startIndex + ordersPerPage, totalOrders);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-LK', {
@@ -288,37 +404,23 @@ const PastOrders = () => {
 
   // Calculate this year's orders
   const currentYear = new Date().getFullYear();
-  const thisYearOrders = Array.isArray(orders) ? orders.filter(order => {
-    const orderYear = new Date(order.createdAt).getFullYear();
-    return orderYear === currentYear;
-  }) : [];
 
   const stats = [
     {
       title: 'Total Orders',
-      value: Array.isArray(orders) ? orders.length.toString() : '0',
+      value: allTimeOrdersCount.toString(),
       icon: ShoppingCartIcon,
       gradient: 'from-blue-500 to-blue-600'
     },
     {
       title: 'Filtered Orders',
-      value: filteredOrders.length.toString(),
+      value: totalOrders.toString(),
       icon: DocumentTextIcon,
       gradient: 'from-purple-500 to-purple-600'
     },
     {
-      title: 'Filtered Orders Revenue',
-      value: filteredOrders.length > 0
-        ? formatCurrency(filteredOrders.reduce((sum, order) => sum + (order.finalTotal || order.total || 0), 0))
-        : formatCurrency(0),
-      icon: CalculatorIcon,
-      gradient: 'from-orange-500 to-orange-600'
-    },
-    {
-      title: 'Total Revenue This Year',
-      value: thisYearOrders.length > 0
-        ? formatCurrency(thisYearOrders.reduce((sum, order) => sum + (order.finalTotal || order.total || 0), 0))
-        : formatCurrency(0),
+      title: `Total Revenue ${currentYear}`,
+      value: formatCurrency(thisYearRevenue),
       icon: CurrencyDollarIcon,
       gradient: 'from-green-500 to-green-600'
     }
@@ -340,7 +442,7 @@ const PastOrders = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         {stats.map((stat, index) => {
           const IconComponent = stat.icon;
           return (
@@ -368,7 +470,7 @@ const PastOrders = () => {
               type="text"
               placeholder="Search orders by ID, customer name, or phone..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             />
           </div>
@@ -380,7 +482,7 @@ const PastOrders = () => {
               <input
                 type="date"
                 value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
+                onChange={(e) => handleFromDateChange(e.target.value)}
                 className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -391,7 +493,7 @@ const PastOrders = () => {
               <input
                 type="date"
                 value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
+                onChange={(e) => handleToDateChange(e.target.value)}
                 className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -399,8 +501,8 @@ const PastOrders = () => {
             {(fromDate || toDate) && (
               <button
                 onClick={() => {
-                  setFromDate('');
-                  setToDate('');
+                  handleFromDateChange('');
+                  handleToDateChange('');
                 }}
                 className="px-3 py-2 text-sm text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
               >
@@ -424,7 +526,7 @@ const PastOrders = () => {
             <div>
               <h2 className="text-xl font-semibold text-slate-800">All Orders</h2>
               <p className="text-slate-600 text-sm mt-1">
-                {filteredOrders.length} orders found • Showing {Math.min(startIndex + 1, filteredOrders.length)}-{Math.min(endIndex, filteredOrders.length)} of {filteredOrders.length}
+                {totalOrders} orders found • Showing {startIndex + 1}-{endIndex} of {totalOrders}
               </p>
             </div>
             {totalPages > 1 && (
@@ -440,14 +542,14 @@ const PastOrders = () => {
             <div className="animate-spin-fast rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             <span className="ml-3 text-slate-600">Loading orders...</span>
           </div>
-        ) : filteredOrders.length === 0 ? (
+        ) : displayedOrders.length === 0 ? (
           <div className="text-center py-12">
             <ShoppingCartIcon className="w-16 h-16 text-slate-300 mx-auto mb-4" />
             <p className="text-slate-600">No orders found</p>
           </div>
         ) : (
           <div className="divide-y divide-slate-200">
-            {currentOrders.map((order) => {
+            {displayedOrders.map((order) => {
               const StatusIcon = getStatusIcon(order.orderStatus);
               const isExpanded = expandedOrders.has(order._id);
               
@@ -457,8 +559,14 @@ const PastOrders = () => {
                     <div className="flex-1">
                       <div className="flex items-center space-x-4">
                         <div>
-                          <h3 className="text-lg font-semibold text-slate-900">
+                          <h3 className="text-lg font-semibold text-slate-900 flex items-center">
                             Order {formatOrderId(order.orderId)}
+                            {order.items?.some(item => item.returnedQuantity > 0) && (
+                              <span className="ml-3 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                <XCircleIcon className="w-3 h-3 mr-1" />
+                                Has Returns
+                              </span>
+                            )}
                           </h3>
                           <div className="flex items-center space-x-4 mt-1">
                             <div className="flex items-center space-x-2">
@@ -722,7 +830,12 @@ const PastOrders = () => {
                               )}
                               <div className="flex justify-between font-bold text-base border-t border-slate-300 pt-1">
                                 <span>Final Total:</span>
-                                <span className="text-green-600">{formatCurrency(order.finalTotal || order.total)}</span>
+                                <span className={`${order.items?.some(item => item.returnedQuantity > 0) ? 'text-orange-600' : 'text-green-600'}`}>
+                                  {formatCurrency(order.finalTotal || order.total)}
+                                  {order.items?.some(item => item.returnedQuantity > 0) && (
+                                    <span className="ml-2 text-xs text-orange-500 font-normal">(After Returns)</span>
+                                  )}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -751,7 +864,7 @@ const PastOrders = () => {
           <div className="p-6 border-t border-slate-200">
             <div className="flex items-center justify-between">
               <div className="text-sm text-slate-600">
-                Showing {Math.min(startIndex + 1, filteredOrders.length)}-{Math.min(endIndex, filteredOrders.length)} of {filteredOrders.length} orders
+                Showing {startIndex + 1}-{endIndex} of {totalOrders} orders
               </div>
               
               <div className="flex items-center space-x-2">
@@ -810,8 +923,14 @@ const PastOrders = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 max-h-screen overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-slate-800">
+              <h2 className="text-2xl font-bold text-slate-800 flex items-center">
                 Order Details - {formatOrderId(selectedOrder.orderId)}
+                {selectedOrder.items?.some(item => item.returnedQuantity > 0) && (
+                  <span className="ml-3 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                    <XCircleIcon className="w-3 h-3 mr-1" />
+                    Has Returns
+                  </span>
+                )}
               </h2>
               <button
                 onClick={() => setShowOrderDetails(false)}
@@ -1066,7 +1185,12 @@ const PastOrders = () => {
                     <div className="border-t border-slate-300 pt-2">
                       <div className="flex justify-between items-center text-xl font-bold text-slate-800">
                         <span>Final Total:</span>
-                        <span className="text-green-600">{formatCurrency(selectedOrder.finalTotal || selectedOrder.total)}</span>
+                        <span className={`${selectedOrder.items?.some(item => item.returnedQuantity > 0) ? 'text-orange-600' : 'text-green-600'}`}>
+                          {formatCurrency(selectedOrder.finalTotal || selectedOrder.total)}
+                          {selectedOrder.items?.some(item => item.returnedQuantity > 0) && (
+                            <span className="ml-2 text-xs text-orange-500 font-normal">(Adjusted for Returns)</span>
+                          )}
+                        </span>
                       </div>
                     </div>
                   </div>

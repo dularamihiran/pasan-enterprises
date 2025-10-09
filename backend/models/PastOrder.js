@@ -219,8 +219,10 @@ pastOrderSchema.index({ 'items.machineId': 1 }); // Index for machine sales stat
 
 // Pre-save middleware to calculate totals
 pastOrderSchema.pre('save', function(next) {
+  console.log(`\n🔄 Pre-Save Middleware Running for Order: ${this.orderId}`);
+  
   // Calculate per-item VAT and totals
-  this.items.forEach(item => {
+  this.items.forEach((item, index) => {
     // The unitPrice stored already includes VAT
     // Calculate VAT amount: VAT = (VAT% / 100) × Unit Price
     const vatAmountPerUnit = (item.vatPercentage / 100) * item.unitPrice;
@@ -228,14 +230,29 @@ pastOrderSchema.pre('save', function(next) {
     // Calculate base price: Base Price = Unit Price - VAT
     const basePricePerUnit = item.unitPrice - vatAmountPerUnit;
     
-    // Calculate subtotal for this item (base price × quantity, without VAT)
-    item.subtotal = basePricePerUnit * item.quantity;
+    // Calculate ACTUAL quantity (original quantity - returned quantity)
+    const actualQuantity = item.quantity - (item.returnedQuantity || 0);
+    
+    console.log(`   📦 Item ${index + 1}: ${item.machineId}`);
+    console.log(`      Original Quantity: ${item.quantity}`);
+    console.log(`      Returned Quantity: ${item.returnedQuantity || 0}`);
+    console.log(`      Actual Quantity: ${actualQuantity}`);
+    console.log(`      Unit Price (with VAT): ${item.unitPrice}`);
+    console.log(`      Base Price per Unit: ${basePricePerUnit.toFixed(2)}`);
+    console.log(`      VAT per Unit: ${vatAmountPerUnit.toFixed(2)}`);
+    
+    // Calculate subtotal for this item (base price × ACTUAL quantity, without VAT)
+    item.subtotal = basePricePerUnit * actualQuantity;
     
     // Calculate total VAT amount for this item
-    item.vatAmount = vatAmountPerUnit * item.quantity;
+    item.vatAmount = vatAmountPerUnit * actualQuantity;
     
-    // Total with VAT is simply unitPrice × quantity
-    item.totalWithVAT = item.unitPrice * item.quantity;
+    // Total with VAT is simply unitPrice × ACTUAL quantity
+    item.totalWithVAT = item.unitPrice * actualQuantity;
+    
+    console.log(`      Item Subtotal (base × actual qty): ${item.subtotal.toFixed(2)}`);
+    console.log(`      Item VAT Amount: ${item.vatAmount.toFixed(2)}`);
+    console.log(`      Item Total with VAT: ${item.totalWithVAT.toFixed(2)}`);
   });
   
   // Calculate subtotal from items (base prices only, no VAT)

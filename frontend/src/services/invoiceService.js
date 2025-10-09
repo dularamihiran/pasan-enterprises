@@ -87,7 +87,7 @@ const loadImageAsBase64 = (imagePath) => {
   });
 };
 
-export const generateInvoice = async (saleData, orderData) => {
+export const generateInvoice = async (saleData, orderData, options = {}) => {
   try {
     // Create new PDF document
     const doc = new jsPDF('p', 'mm', 'a4');
@@ -97,6 +97,10 @@ export const generateInvoice = async (saleData, orderData) => {
     
     let yPosition = 20;
     let currentPage = 1;
+    
+    // Determine document type
+    const isQuotation = options.isQuotation || false;
+    const documentTitle = isQuotation ? 'QUOTATION' : 'INVOICE';
     
     // Load logo
     let logoBase64 = null;
@@ -162,10 +166,10 @@ export const generateInvoice = async (saleData, orderData) => {
     
     yPosition = 55; // Increased from 50 to 55 to account for bigger logo
     
-    // Invoice title
+    // Document title (Invoice or Quotation)
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text('INVOICE', pageWidth / 2, yPosition, { align: 'center' });
+    doc.text(documentTitle, pageWidth / 2, yPosition, { align: 'center' });
     yPosition += 15;
     
     // Invoice details
@@ -177,7 +181,8 @@ export const generateInvoice = async (saleData, orderData) => {
     const invoiceTime = currentDate.toLocaleTimeString();
     
     doc.text(`Buyer: ${saleData.customerInfo.name}`, 15, yPosition);
-    doc.text(`Invoice Number: ${orderData.orderId}`, pageWidth - 15, yPosition, { align: 'right' });
+    const documentNumberLabel = isQuotation ? 'Quotation Number:' : 'Invoice Number:';
+    doc.text(`${documentNumberLabel} ${orderData.orderId}`, pageWidth - 15, yPosition, { align: 'right' });
     yPosition += 6;
     
     // Add customer address below buyer name if address exists
@@ -508,7 +513,8 @@ export const generateInvoice = async (saleData, orderData) => {
     }
     
     // Generate filename
-    const filename = `Invoice_${orderData.orderId}_${currentDate.toISOString().split('T')[0]}.pdf`;
+    const documentType = isQuotation ? 'Quotation' : 'Invoice';
+    const filename = `${documentType}_${orderData.orderId}_${currentDate.toISOString().split('T')[0]}.pdf`;
     
     // Save the PDF
     doc.save(filename);
@@ -516,15 +522,21 @@ export const generateInvoice = async (saleData, orderData) => {
     return {
       success: true,
       filename: filename,
-      message: 'Invoice generated successfully'
+      message: `${documentType} generated successfully`
     };
     
   } catch (error) {
     console.error('Error generating invoice:', error);
+    const documentType = options.isQuotation ? 'quotation' : 'invoice';
     return {
       success: false,
       error: error.message,
-      message: 'Failed to generate invoice'
+      message: `Failed to generate ${documentType}`
     };
   }
+};
+
+// Function to generate quotation (wrapper for generateInvoice with quotation option)
+export const generateQuotation = async (saleData, orderData) => {
+  return await generateInvoice(saleData, orderData, { isQuotation: true });
 };

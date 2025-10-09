@@ -389,6 +389,7 @@ module.exports = {
   getMonthlyRevenue,
   getTotalOrders,
   getThisYearRevenue,
+  getAnnualRevenue,
   getLowStock,
   getTotalItems,
   getMonthlyGraph,

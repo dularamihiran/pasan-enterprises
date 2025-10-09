@@ -112,13 +112,20 @@ customerSchema.index({ phone: 1 }, { unique: true });
 customerSchema.index({ email: 1 }, { sparse: true });
 customerSchema.index({ name: 'text' });
 
-// Pre-save middleware to normalize phone number
+// Pre-save middleware to normalize phone number and handle empty NIC
 customerSchema.pre('save', function(next) {
   if (this.phone) {
     // Normalize phone number by removing formatting
     this.phone = normalizePhone(this.phone);
     console.log(`📱 Normalized phone number: "${this.phone}"`);
   }
+  
+  // Convert empty NIC strings to undefined to prevent duplicate key errors
+  if (this.nic === '' || this.nic === null) {
+    this.nic = undefined;
+    console.log(`🆔 Converted empty NIC to undefined`);
+  }
+  
   next();
 });
 
@@ -147,8 +154,9 @@ customerSchema.statics.findByPhoneOrNIC = function(phone, nic) {
     query.$or.push({ phone: normalizedPhone });
   }
   
-  if (nic) {
-    query.$or.push({ nic: nic.toUpperCase() });
+  // Only search by NIC if it's not empty
+  if (nic && nic.trim()) {
+    query.$or.push({ nic: nic.trim().toUpperCase() });
   }
   
   return query.$or.length > 0 ? this.findOne(query) : null;
