@@ -251,20 +251,27 @@ const PastOrders = () => {
       });
       
       if (response.data.success) {
+        const orderTotals = response.data.data.orderTotals || {};
+        const refundInfo = response.data.data.returnedItem || {};
+        
         alert(
           `✅ Item returned successfully!\n\n` +
           `Item: ${itemName}\n` +
           `Returned Quantity: ${returnQuantity}\n` +
-          `Stock Updated: ${response.data.data.updatedStock.machineName} (+${returnQuantity})`
+          `Stock Updated: ${response.data.data.updatedStock.machineName} (+${returnQuantity})\n\n` +
+          `💰 Order Total Updated:\n` +
+          `Old Total: LKR ${orderTotals.oldFinalTotal || 'N/A'}\n` +
+          `New Total: LKR ${orderTotals.newFinalTotal || 'N/A'}\n` +
+          `Refund Amount: LKR ${refundInfo.refundAmount || 'N/A'}`
         );
         
-        // Refresh orders list
-        await loadOrders();
-        
-        // Update selected order if it's the one being viewed
+        // Update selected order FIRST if it's the one being viewed
         if (selectedOrder && selectedOrder._id === orderId) {
           setSelectedOrder(response.data.data.order);
         }
+        
+        // Then refresh orders list to update the table
+        await loadOrders();
       } else {
         alert('Failed to return item: ' + (response.data.message || 'Unknown error'));
       }
@@ -552,8 +559,14 @@ const PastOrders = () => {
                     <div className="flex-1">
                       <div className="flex items-center space-x-4">
                         <div>
-                          <h3 className="text-lg font-semibold text-slate-900">
+                          <h3 className="text-lg font-semibold text-slate-900 flex items-center">
                             Order {formatOrderId(order.orderId)}
+                            {order.items?.some(item => item.returnedQuantity > 0) && (
+                              <span className="ml-3 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                <XCircleIcon className="w-3 h-3 mr-1" />
+                                Has Returns
+                              </span>
+                            )}
                           </h3>
                           <div className="flex items-center space-x-4 mt-1">
                             <div className="flex items-center space-x-2">
@@ -817,7 +830,12 @@ const PastOrders = () => {
                               )}
                               <div className="flex justify-between font-bold text-base border-t border-slate-300 pt-1">
                                 <span>Final Total:</span>
-                                <span className="text-green-600">{formatCurrency(order.finalTotal || order.total)}</span>
+                                <span className={`${order.items?.some(item => item.returnedQuantity > 0) ? 'text-orange-600' : 'text-green-600'}`}>
+                                  {formatCurrency(order.finalTotal || order.total)}
+                                  {order.items?.some(item => item.returnedQuantity > 0) && (
+                                    <span className="ml-2 text-xs text-orange-500 font-normal">(After Returns)</span>
+                                  )}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -905,8 +923,14 @@ const PastOrders = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 max-h-screen overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-slate-800">
+              <h2 className="text-2xl font-bold text-slate-800 flex items-center">
                 Order Details - {formatOrderId(selectedOrder.orderId)}
+                {selectedOrder.items?.some(item => item.returnedQuantity > 0) && (
+                  <span className="ml-3 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                    <XCircleIcon className="w-3 h-3 mr-1" />
+                    Has Returns
+                  </span>
+                )}
               </h2>
               <button
                 onClick={() => setShowOrderDetails(false)}
@@ -1161,7 +1185,12 @@ const PastOrders = () => {
                     <div className="border-t border-slate-300 pt-2">
                       <div className="flex justify-between items-center text-xl font-bold text-slate-800">
                         <span>Final Total:</span>
-                        <span className="text-green-600">{formatCurrency(selectedOrder.finalTotal || selectedOrder.total)}</span>
+                        <span className={`${selectedOrder.items?.some(item => item.returnedQuantity > 0) ? 'text-orange-600' : 'text-green-600'}`}>
+                          {formatCurrency(selectedOrder.finalTotal || selectedOrder.total)}
+                          {selectedOrder.items?.some(item => item.returnedQuantity > 0) && (
+                            <span className="ml-2 text-xs text-orange-500 font-normal">(Adjusted for Returns)</span>
+                          )}
+                        </span>
                       </div>
                     </div>
                   </div>

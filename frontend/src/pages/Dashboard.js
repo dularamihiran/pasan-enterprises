@@ -136,6 +136,12 @@ const Dashboard = () => {
     })}`;
   };
 
+  // Format currency without decimals as "LKR 123,456"
+  const formatCurrencyNoDecimals = (amount) => {
+    if (!amount && amount !== 0) return 'LKR 0';
+    return `LKR ${Math.round(amount).toLocaleString('en-US')}`;
+  };
+
   // Loading state
   if (loading) {
     return (
@@ -198,7 +204,7 @@ const Dashboard = () => {
             </div>
           </div>
           <h3 className="text-3xl font-bold text-slate-800 mb-2 whitespace-nowrap">
-            {monthlyRevenue ? formatCurrency(monthlyRevenue.revenue) : 'LKR 0.00'}
+            {monthlyRevenue ? formatCurrencyNoDecimals(monthlyRevenue.revenue) : 'LKR 0'}
           </h3>
           <p className="text-slate-600 text-sm font-medium">Monthly Revenue</p>
           <p className="text-slate-500 text-xs mt-1">This month</p>
@@ -212,7 +218,7 @@ const Dashboard = () => {
             </div>
           </div>
           <h3 className="text-3xl font-bold text-slate-800 mb-2 whitespace-nowrap">
-            {totalOrders ? formatCurrency(totalOrders.revenue) : 'LKR 0.00'}
+            {totalOrders ? formatCurrencyNoDecimals(totalOrders.revenue) : 'LKR 0'}
           </h3>
           <p className="text-slate-600 text-sm font-medium">Total Orders</p>
           <p className="text-slate-500 text-xs mt-1">All time revenue</p>
