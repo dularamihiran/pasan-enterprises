@@ -70,48 +70,7 @@ const getTotalOrders = async (req, res) => {
   }
 };
 
-// @desc    Get this year revenue (January to current month)
-// @route   GET /api/dashboard/this-year-revenue
-// @access  Public
-const getThisYearRevenue = async (req, res) => {
-  try {
-    const today = new Date();
-    const currentYear = today.getFullYear();
-    const startOfYear = new Date(currentYear, 0, 1); // January 1st
-    const endOfCurrentMonth = new Date(currentYear, today.getMonth() + 1, 0, 23, 59, 59);
 
-    // Get all orders from January to current month of this year
-    const yearOrders = await PastOrder.find({
-      createdAt: {
-        $gte: startOfYear,
-        $lte: endOfCurrentMonth
-      }
-    }).select('finalTotal total').lean();
-
-    // Calculate total revenue (use finalTotal which includes VAT, discount, extras)
-    const yearRevenue = yearOrders.reduce((sum, order) => {
-      return sum + (order.finalTotal || order.total || 0);
-    }, 0);
-
-    res.json({
-      success: true,
-      data: {
-        revenue: yearRevenue,
-        orderCount: yearOrders.length,
-        year: currentYear,
-        description: `January to ${today.toLocaleString('en-US', { month: 'long' })} ${currentYear}`
-      }
-    });
-
-  } catch (error) {
-    console.error('Error fetching this year revenue:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching this year revenue',
-      error: error.message
-    });
-  }
-};
 
 // @desc    Get low stock items count (quantity < 3)
 // @route   GET /api/dashboard/low-stock
@@ -388,8 +347,6 @@ const getBestSellingMachines = async (req, res) => {
 module.exports = {
   getMonthlyRevenue,
   getTotalOrders,
-  getThisYearRevenue,
-  getAnnualRevenue,
   getLowStock,
   getTotalItems,
   getMonthlyGraph,
