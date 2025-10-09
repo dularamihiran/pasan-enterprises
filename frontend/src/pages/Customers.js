@@ -33,6 +33,12 @@ const Customers = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCustomers, setTotalCustomers] = useState(0);
+  const customersPerPage = 20;
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -41,40 +47,66 @@ const Customers = () => {
     address: ''
   });
 
-  // Load customers from backend
+  // Load customers from backend with pagination
   useEffect(() => {
     loadCustomers();
-  }, []);
+  }, [currentPage, searchTerm]); // Reload when page or search changes
 
   const loadCustomers = async () => {
     try {
       setLoading(true);
       setError('');
-      const response = await customerAPI.getAll({ limit: 1000 }); // Request a high limit to get all customers
+      
+      const params = {
+        page: currentPage,
+        limit: customersPerPage
+      };
+      
+      // Add search parameter if search term exists
+      if (searchTerm.trim()) {
+        params.search = searchTerm.trim();
+      }
+      
+      const response = await customerAPI.getAll(params);
       console.log('API Response:', response.data);
       
       if (response.data.success) {
         setCustomers(response.data.data || []);
+        setTotalPages(response.data.pages || 1);
+        setTotalCustomers(response.data.total || 0);
       } else {
         setError('Failed to load customers');
         setCustomers([]);
+        setTotalPages(1);
+        setTotalCustomers(0);
       }
     } catch (err) {
       console.error('Error loading customers:', err);
       const errorInfo = handleApiError(err);
       setError(errorInfo.message || 'Failed to load customers');
       setCustomers([]);
+      setTotalPages(1);
+      setTotalCustomers(0);
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredCustomers = Array.isArray(customers) ? customers.filter(customer =>
-    customer.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.phone?.includes(searchTerm) ||
-    customer.nic?.includes(searchTerm)
-  ) : [];
+  // Handle search with debouncing
+  const handleSearchChange = (value) => {
+    setSearchTerm(value);
+    setCurrentPage(1); // Reset to first page when searching
+  };
+
+  // Pagination functions
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+    }
+  };
+
+  // Since we're doing server-side pagination, we don't need client-side filtering
+  const displayedCustomers = Array.isArray(customers) ? customers : [];
 
   const handleAddCustomer = () => {
     setFormData({
@@ -104,10 +136,18 @@ const Customers = () => {
     if (window.confirm('Are you sure you want to delete this customer? This action cannot be undone.')) {
       try {
         await customerAPI.delete(customerId);
-        setCustomers(customers.filter(customer => customer._id !== customerId));
+        
+        // If deleting the last customer on the current page and we're not on page 1, go to previous page
+        if (displayedCustomers.length === 1 && currentPage > 1) {
+          setCurrentPage(currentPage - 1);
+        } else {
+          // Reload the current page
+          loadCustomers();
+        }
       } catch (err) {
         console.error('Error deleting customer:', err);
-        alert(handleApiError(err));
+        const errorInfo = handleApiError(err);
+        setError(errorInfo.message || 'Failed to delete customer');
       }
     }
   };
@@ -119,19 +159,22 @@ const Customers = () => {
     
     try {
       if (editingCustomer) {
-        const updatedCustomer = await customerAPI.update(editingCustomer, formData);
-        setCustomers(customers.map(customer => 
-          customer._id === editingCustomer ? updatedCustomer : customer
-        ));
+        await customerAPI.update(editingCustomer, formData);
       } else {
-        const newCustomer = await customerAPI.create(formData);
-        setCustomers([...customers, newCustomer]);
+        await customerAPI.create(formData);
+        // For new customers, go to first page to see the new addition
+        setCurrentPage(1);
       }
+      
       setShowAddModal(false);
       setEditingCustomer(null);
+      
+      // Reload customers data
+      loadCustomers();
     } catch (err) {
       console.error('Error saving customer:', err);
-      setError(handleApiError(err));
+      const errorInfo = handleApiError(err);
+      setError(errorInfo.message || 'Failed to save customer');
     } finally {
       setSubmitting(false);
     }
@@ -148,13 +191,13 @@ const Customers = () => {
   const stats = [
     {
       title: 'Total Customers',
-      value: Array.isArray(customers) ? customers.length.toString() : '0',
+      value: totalCustomers.toString(),
       icon: UsersIcon,
       gradient: 'from-blue-500 to-blue-600'
     },
     {
-      title: 'Total Orders',
-      value: Array.isArray(customers) ? customers.reduce((sum, customer) => sum + (customer.totalOrders || 0), 0).toString() : '0',
+      title: 'Current Page',
+      value: `${currentPage} of ${totalPages}`,
       icon: UserPlusIcon,
       gradient: 'from-green-500 to-green-600'
     },
@@ -217,7 +260,7 @@ const Customers = () => {
               type="text"
               placeholder="Search customers by name, email, phone, or NIC..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             />
           </div>
@@ -236,7 +279,7 @@ const Customers = () => {
       <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
         <div className="p-6 border-b border-slate-200">
           <h2 className="text-xl font-semibold text-slate-800">All Customers</h2>
-          <p className="text-slate-600 text-sm mt-1">{filteredCustomers.length} customers found</p>
+          <p className="text-slate-600 text-sm mt-1">{totalCustomers} customers found</p>
         </div>
         
         {loading ? (
@@ -244,16 +287,20 @@ const Customers = () => {
             <div className="animate-spin-fast rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             <span className="ml-3 text-slate-600">Loading customers...</span>
           </div>
-        ) : filteredCustomers.length === 0 ? (
+        ) : displayedCustomers.length === 0 ? (
           <div className="text-center py-12">
             <UsersIcon className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <p className="text-slate-600">No customers found</p>
-            <button
-              onClick={handleAddCustomer}
-              className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
-            >
-              Add Your First Customer
-            </button>
+            <p className="text-slate-600">
+              {searchTerm ? 'No customers found matching your search' : 'No customers found'}
+            </p>
+            {!searchTerm && (
+              <button
+                onClick={handleAddCustomer}
+                className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
+              >
+                Add Your First Customer
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -269,7 +316,7 @@ const Customers = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-200">
-                {filteredCustomers.map((customer) => (
+                {displayedCustomers.map((customer) => (
                   <tr key={customer._id} className="hover:bg-slate-50 transition-colors duration-200">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
@@ -341,6 +388,64 @@ const Customers = () => {
                 ))}
               </tbody>
             </table>
+            
+            {/* Pagination Info and Controls */}
+            {totalCustomers > 0 && (
+              <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-t">
+                <div className="text-sm text-slate-600">
+                  Showing {((currentPage - 1) * customersPerPage) + 1} to {Math.min(currentPage * customersPerPage, totalCustomers)} of {totalCustomers} customers
+                </div>
+                
+                {totalPages > 1 && (
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1 text-sm border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
+                    
+                    {(() => {
+                      const pages = [];
+                      const maxPagesToShow = 5;
+                      let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+                      let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+                      
+                      if (endPage - startPage < maxPagesToShow - 1) {
+                        startPage = Math.max(1, endPage - maxPagesToShow + 1);
+                      }
+                      
+                      for (let i = startPage; i <= endPage; i++) {
+                        pages.push(i);
+                      }
+                      
+                      return pages.map((page) => (
+                        <button
+                          key={page}
+                          onClick={() => handlePageChange(page)}
+                          className={`px-3 py-1 text-sm rounded ${
+                            currentPage === page
+                              ? 'bg-blue-500 text-white'
+                              : 'border border-slate-300 hover:bg-slate-50'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      ));
+                    })()}
+                    
+                    <button
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-1 text-sm border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
