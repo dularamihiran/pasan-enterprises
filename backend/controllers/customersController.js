@@ -306,8 +306,10 @@ const findOrCreateCustomer = async (customerData) => {
         needsUpdate = true;
       }
       
-      if (nic && customer.nic !== nic.toUpperCase()) {
-        customer.nic = nic.toUpperCase();
+      // Handle NIC update - convert empty strings to undefined
+      const normalizedNic = nic && nic.trim() ? nic.trim().toUpperCase() : undefined;
+      if (normalizedNic !== customer.nic) {
+        customer.nic = normalizedNic;
         needsUpdate = true;
       }
       
@@ -329,7 +331,7 @@ const findOrCreateCustomer = async (customerData) => {
       name,
       phone,
       email,
-      nic,
+      nic: nic && nic.trim() ? nic.trim() : undefined, // Convert empty strings to undefined
       address
     });
 

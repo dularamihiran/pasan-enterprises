@@ -67,9 +67,8 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, activeTab, setActiveTab }) => {
             {!isCollapsed && (
               <div className="transition-opacity duration-300">
                 <h1 className="text-xl font-bold bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
-                  Pasan Enterprises
+                  P.E. INDUSTRIAL AUTOMATION 
                 </h1>
-                <p className="text-sm text-slate-400 font-medium">Inventory Management</p>
               </div>
             )}
           </div>

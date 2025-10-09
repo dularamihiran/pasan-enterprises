@@ -12,7 +12,7 @@ import {
   DocumentArrowDownIcon
 } from '@heroicons/react/24/outline';
 import { machineAPI, salesAPI, customerAPI, handleApiError } from '../services/apiService';
-import { generateInvoice } from '../services/invoiceService';
+import { generateInvoice, generateQuotation } from '../services/invoiceService';
 
 const SellItem = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -327,27 +327,27 @@ const SellItem = () => {
     return getTotalBeforeDiscount() - getDiscountAmount() + getExtrasTotal();
   };
 
-  // Function to generate invoice preview (for testing)
-  const handleGenerateInvoicePreview = async () => {
+  // Function to generate quotation (formerly invoice preview)
+  const handleGenerateQuotation = async () => {
     if (cart.length === 0) {
-      setError('Please add items to cart before generating invoice preview.');
+      setError('Please add items to cart before generating quotation.');
       setTimeout(() => setError(''), 3000);
       return;
     }
 
     if (!customerInfo.name?.trim()) {
-      setError('Customer name is required for invoice.');
+      setError('Customer name is required for quotation.');
       setTimeout(() => setError(''), 3000);
       return;
     }
 
     try {
       const mockOrderData = {
-        orderId: 'PREVIEW-' + Date.now(),
+        orderId: 'QUOTE-' + Date.now(),
         date: new Date().toISOString()
       };
 
-      const invoiceData = {
+      const quotationData = {
         customerInfo: {
           name: customerInfo.name.trim() || 'Sample Customer',
           phone: customerInfo.phone.trim() || '0771234567',
@@ -375,15 +375,15 @@ const SellItem = () => {
         finalTotal: getFinalTotal()
       };
 
-      const invoiceResult = await generateInvoice(invoiceData, mockOrderData);
-      if (invoiceResult.success) {
-        setSuccessMessage(`Invoice preview generated successfully! Downloaded as ${invoiceResult.filename}`);
+      const quotationResult = await generateQuotation(quotationData, mockOrderData);
+      if (quotationResult.success) {
+        setSuccessMessage(`Quotation generated successfully! Downloaded as ${quotationResult.filename}`);
       } else {
-        setError(`Invoice preview generation failed: ${invoiceResult.message}`);
+        setError(`Quotation generation failed: ${quotationResult.message}`);
       }
     } catch (error) {
-      console.error('Invoice preview error:', error);
-      setError('Failed to generate invoice preview');
+      console.error('Quotation generation error:', error);
+      setError('Failed to generate quotation');
     }
 
     setTimeout(() => {
@@ -1088,14 +1088,14 @@ const SellItem = () => {
 
         {/* Process Sale Button */}
         <div className="flex justify-center gap-4">
-          {/* Preview Invoice Button */}
+          {/* Generate Quotation Button */}
           <button
-            onClick={handleGenerateInvoicePreview}
+            onClick={handleGenerateQuotation}
             disabled={cart.length === 0}
             className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-medium hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-lg"
           >
             <DocumentArrowDownIcon className="w-5 h-5 mr-2" />
-            Preview Invoice
+            Generate Quotation
           </button>
 
           {/* Complete Sale Button */}
