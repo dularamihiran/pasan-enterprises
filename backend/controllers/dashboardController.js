@@ -76,6 +76,59 @@ const getTotalOrders = async (req, res) => {
   }
 };
 
+// @desc    Get total annual revenue for current year
+// @route   GET /api/dashboard/annual-revenue
+// @access  Public
+const getAnnualRevenue = async (req, res) => {
+  try {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    
+    // Get start and end of current year
+    const yearStart = new Date(currentYear, 0, 1); // January 1st
+    const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59); // December 31st
+
+    console.log(`📅 Fetching annual revenue for year: ${currentYear}`);
+    console.log(`   From: ${yearStart.toISOString()}`);
+    console.log(`   To: ${yearEnd.toISOString()}`);
+
+    // Get all orders from current year
+    const yearOrders = await PastOrder.find({
+      createdAt: {
+        $gte: yearStart,
+        $lte: yearEnd
+      }
+    }).select('finalTotal total createdAt').lean();
+
+    console.log(`   Found ${yearOrders.length} orders in ${currentYear}`);
+
+    // Calculate total annual revenue (use finalTotal which includes VAT, discount, extras)
+    const annualRevenue = yearOrders.reduce((sum, order) => {
+      return sum + (order.finalTotal || order.total || 0);
+    }, 0);
+
+    console.log(`   Annual Revenue: LKR ${annualRevenue.toLocaleString()}`);
+
+    res.json({
+      success: true,
+      data: {
+        revenue: annualRevenue,
+        orderCount: yearOrders.length,
+        year: currentYear,
+        description: `Total revenue for ${currentYear}`
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching annual revenue:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching annual revenue',
+      error: error.message
+    });
+  }
+};
+
 // @desc    Get low stock items count (quantity < 3)
 // @route   GET /api/dashboard/low-stock
 // @access  Public
@@ -215,6 +268,7 @@ const getMonthlyGraph = async (req, res) => {
 module.exports = {
   getMonthlyRevenue,
   getTotalOrders,
+  getAnnualRevenue,
   getLowStock,
   getTotalItems,
   getMonthlyGraph
