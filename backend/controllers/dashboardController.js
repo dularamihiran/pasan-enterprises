@@ -49,20 +49,14 @@ const getMonthlyRevenue = async (req, res) => {
 // @access  Public
 const getTotalOrders = async (req, res) => {
   try {
-    // Get all orders
-    const allOrders = await PastOrder.find().select('finalTotal total').lean();
-
-    // Calculate total revenue (use finalTotal which includes VAT, discount, extras)
-    const totalRevenue = allOrders.reduce((sum, order) => {
-      return sum + (order.finalTotal || order.total || 0);
-    }, 0);
+    // Get count of all orders (not revenue)
+    const totalOrdersCount = await PastOrder.countDocuments();
 
     res.json({
       success: true,
       data: {
-        revenue: totalRevenue,
-        orderCount: allOrders.length,
-        description: 'All time revenue'
+        count: totalOrdersCount,
+        description: 'All time orders'
       }
     });
 
@@ -71,6 +65,49 @@ const getTotalOrders = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching total orders',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get this year revenue (January to current month)
+// @route   GET /api/dashboard/this-year-revenue
+// @access  Public
+const getThisYearRevenue = async (req, res) => {
+  try {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const startOfYear = new Date(currentYear, 0, 1); // January 1st
+    const endOfCurrentMonth = new Date(currentYear, today.getMonth() + 1, 0, 23, 59, 59);
+
+    // Get all orders from January to current month of this year
+    const yearOrders = await PastOrder.find({
+      createdAt: {
+        $gte: startOfYear,
+        $lte: endOfCurrentMonth
+      }
+    }).select('finalTotal total').lean();
+
+    // Calculate total revenue (use finalTotal which includes VAT, discount, extras)
+    const yearRevenue = yearOrders.reduce((sum, order) => {
+      return sum + (order.finalTotal || order.total || 0);
+    }, 0);
+
+    res.json({
+      success: true,
+      data: {
+        revenue: yearRevenue,
+        orderCount: yearOrders.length,
+        year: currentYear,
+        description: `January to ${today.toLocaleString('en-US', { month: 'long' })} ${currentYear}`
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching this year revenue:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching this year revenue',
       error: error.message
     });
   }
@@ -110,33 +147,47 @@ const getLowStock = async (req, res) => {
   }
 };
 
-// @desc    Get total items in inventory
+// @desc    Get total available inventory items
 // @route   GET /api/dashboard/total-items
 // @access  Public
 const getTotalItems = async (req, res) => {
   try {
-    // Count all machines in inventory
-    const totalItems = await Machine.countDocuments();
-
-    // Optional: Get category breakdown
-    const categoryBreakdown = await Machine.aggregate([
+    // Calculate total available quantity (sum of all quantities)
+    const inventoryStats = await Machine.aggregate([
       {
         $group: {
-          _id: '$category',
-          count: { $sum: 1 }
+          _id: null,
+          totalQuantity: { $sum: '$quantity' },
+          totalItems: { $sum: 1 },
+          inStock: {
+            $sum: {
+              $cond: [{ $gt: ['$quantity', 0] }, 1, 0]
+            }
+          },
+          outOfStock: {
+            $sum: {
+              $cond: [{ $eq: ['$quantity', 0] }, 1, 0]
+            }
+          }
         }
-      },
-      {
-        $sort: { count: -1 }
       }
     ]);
+
+    const stats = inventoryStats[0] || {
+      totalQuantity: 0,
+      totalItems: 0,
+      inStock: 0,
+      outOfStock: 0
+    };
 
     res.json({
       success: true,
       data: {
-        count: totalItems,
-        categoryBreakdown,
-        description: 'In inventory'
+        totalQuantity: stats.totalQuantity,
+        totalItems: stats.totalItems,
+        inStock: stats.inStock,
+        outOfStock: stats.outOfStock,
+        description: 'Available inventory'
       }
     });
 
@@ -150,52 +201,84 @@ const getTotalItems = async (req, res) => {
   }
 };
 
-// @desc    Get monthly revenue data for the entire year (bar chart)
+// @desc    Get monthly revenue data for the last 12 months (bar chart)
 // @route   GET /api/dashboard/monthly-graph
 // @access  Public
 const getMonthlyGraph = async (req, res) => {
   try {
     const today = new Date();
+    const currentMonth = today.getMonth();
     const currentYear = today.getFullYear();
 
-    // Month names
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-    // Get all orders for the current year
-    const yearStart = new Date(currentYear, 0, 1);
-    const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59);
+    // Pre-build the 12 month window so we can map revenues onto it later.
+    const monthsWindow = [];
+    for (let offset = 11; offset >= 0; offset--) {
+      let targetYear = currentYear;
+      let targetMonth = currentMonth - offset;
 
-    const allOrders = await PastOrder.find({
-      createdAt: {
-        $gte: yearStart,
-        $lte: yearEnd
+      if (targetMonth < 0) {
+        targetMonth += 12;
+        targetYear -= 1;
       }
-    }).select('finalTotal total createdAt').lean();
 
-    // Generate data for all 12 months
-    const monthlyData = [];
-
-    for (let month = 0; month < 12; month++) {
-      const monthStart = new Date(currentYear, month, 1);
-      const monthEnd = new Date(currentYear, month + 1, 0, 23, 59, 59);
-
-      // Filter orders for this month
-      const monthOrders = allOrders.filter(order => {
-        const orderDate = new Date(order.createdAt);
-        return orderDate >= monthStart && orderDate <= monthEnd;
-      });
-
-      // Calculate revenue (use finalTotal which includes VAT, discount, extras)
-      const revenue = monthOrders.reduce((sum, order) => {
-        return sum + (order.finalTotal || order.total || 0);
-      }, 0);
-
-      monthlyData.push({
-        month: monthNames[month],
-        revenue: revenue
+      monthsWindow.push({
+        label: monthNames[targetMonth],
+        year: targetYear,
+        monthIndex: targetMonth,
+        monthNumber: targetMonth + 1,
+        isCurrentMonth: targetMonth === currentMonth && targetYear === currentYear
       });
     }
+
+    const rangeStart = new Date(monthsWindow[0].year, monthsWindow[0].monthIndex, 1);
+    const rangeEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
+
+    const revenueByMonth = await PastOrder.aggregate([
+      {
+        $match: {
+          createdAt: {
+            $gte: rangeStart,
+            $lte: rangeEnd
+          }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$createdAt' },
+            month: { $month: '$createdAt' }
+          },
+          totalRevenue: {
+            $sum: {
+              $ifNull: [
+                '$finalTotal',
+                { $ifNull: ['$total', 0] }
+              ]
+            }
+          }
+        }
+      }
+    ]);
+
+    const revenueMap = new Map();
+    revenueByMonth.forEach((item) => {
+      const key = `${item._id.year}-${item._id.month}`;
+      revenueMap.set(key, item.totalRevenue || 0);
+    });
+
+    const monthlyData = monthsWindow.map((month) => {
+      const key = `${month.year}-${month.monthNumber}`;
+      return {
+        month: month.label,
+        revenue: revenueMap.get(key) || 0,
+        year: month.year,
+        monthNumber: month.monthNumber,
+        isCurrentMonth: month.isCurrentMonth
+      };
+    });
 
     res.json({
       success: true,
@@ -212,10 +295,102 @@ const getMonthlyGraph = async (req, res) => {
   }
 };
 
+// @desc    Get top 3 best selling machines for 2025
+// @route   GET /api/dashboard/best-selling-machines
+// @access  Public
+const getBestSellingMachines = async (req, res) => {
+  try {
+    const year = 2025;
+    const startOfYear = new Date(year, 0, 1); // January 1, 2025
+    const endOfYear = new Date(year, 11, 31, 23, 59, 59); // December 31, 2025
+
+    // Aggregate orders to find best selling machines
+    const bestSellingMachines = await PastOrder.aggregate([
+      // Match orders from 2025
+      {
+        $match: {
+          createdAt: {
+            $gte: startOfYear,
+            $lte: endOfYear
+          }
+        }
+      },
+      // Unwind the items array to work with individual items
+      {
+        $unwind: '$items'
+      },
+      // Group by machine and calculate totals
+      {
+        $group: {
+          _id: '$items.machineId',
+          machineName: { $first: '$items.name' },
+          category: { $first: '$items.category' },
+          totalQuantitySold: { $sum: '$items.quantity' },
+          totalRevenue: { $sum: '$items.totalWithVAT' },
+          orderCount: { $sum: 1 }
+        }
+      },
+      // Sort by total quantity sold (descending)
+      {
+        $sort: { totalQuantitySold: -1 }
+      },
+      // Limit to top 3
+      {
+        $limit: 3
+      },
+      // Lookup machine details
+      {
+        $lookup: {
+          from: 'machines',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'machineDetails'
+        }
+      },
+      // Add current stock information
+      {
+        $addFields: {
+          currentStock: { $arrayElemAt: ['$machineDetails.quantity', 0] },
+          itemId: { $arrayElemAt: ['$machineDetails.itemId', 0] }
+        }
+      },
+      // Format the final result
+      {
+        $project: {
+          _id: 1,
+          machineName: 1,
+          category: 1,
+          itemId: 1,
+          totalQuantitySold: 1,
+          totalRevenue: 1,
+          orderCount: 1,
+          currentStock: { $ifNull: ['$currentStock', 0] }
+        }
+      }
+    ]);
+
+    res.json({
+      success: true,
+      data: bestSellingMachines,
+      year: year
+    });
+
+  } catch (error) {
+    console.error('Error fetching best selling machines:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching best selling machines',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getMonthlyRevenue,
   getTotalOrders,
+  getThisYearRevenue,
   getLowStock,
   getTotalItems,
-  getMonthlyGraph
+  getMonthlyGraph,
+  getBestSellingMachines
 };
