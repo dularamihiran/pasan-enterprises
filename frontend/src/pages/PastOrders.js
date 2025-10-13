@@ -13,7 +13,6 @@ import {
   EyeIcon,
   ChevronDownIcon,
   ChevronUpIcon,
-  CalculatorIcon
 } from '@heroicons/react/24/outline';
 import { pastOrdersAPI, handleApiError } from '../services/apiService';
 
@@ -38,6 +37,142 @@ const PastOrders = () => {
     return `${day}/${month}/${year} ${hours}:${minutes}`;
   };
 
+  // (removed unused orderHasReturns helper; calculation uses flags computed inside calculateOrderTotals)
+
+  // Robust order totals calculator that supports both new and legacy item shapes.
+  // Follows the steps provided in the requirements and handles partial/quantity returns.
+  const calculateOrderTotals = (order) => {
+    if (!order || !Array.isArray(order.items)) {
+      return {
+        subtotal: 0,
+        vatAmount: 0,
+        totalBeforeDiscount: 0,
+        discountAmount: 0,
+        finalTotal: 0,
+        extrasTotal: 0,
+        hasReturns: false,
+        allReturned: false
+      };
+    }
+
+    // Helpers
+    const toNumber = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    const vatRate = ('vat_rate' in order) ? toNumber(order.vat_rate) : (toNumber(order.vatPercentage) ? toNumber(order.vatPercentage) / 100 : (toNumber(order.vatRate) || 0.18));
+    // discount_rate may be fraction (0.1) or percentage (10)
+    let discountRate = 0;
+    if ('discount_rate' in order) discountRate = toNumber(order.discount_rate);
+    else if ('discountPercentage' in order) discountRate = toNumber(order.discountPercentage) / 100;
+    else if ('discountRate' in order) discountRate = toNumber(order.discountRate);
+
+    let subtotal = 0;
+    let vatAmount = 0;
+    let anyReturned = false;
+    let allReturned = true;
+
+    (order.items || []).forEach(item => {
+      // Determine quantities
+      const originalQty = toNumber(item.original_quantity ?? item.quantity ?? item.originalQuantity ?? 0);
+      let returnedQty = toNumber(item.returned_quantity ?? item.returnedQuantity ?? 0);
+      // Legacy boolean returned flag means fully returned
+      if (item.returned === true) returnedQty = originalQty;
+
+      const remainingQty = Math.max(0, originalQty - returnedQty);
+
+      if (returnedQty > 0) anyReturned = true;
+      if (remainingQty > 0) allReturned = false;
+
+      if (remainingQty <= 0) return; // skip fully returned items
+
+      // Determine per-unit machine price (price before VAT) and per-unit VAT
+      let machinePricePerUnit = 0; // price excluding VAT
+      let vatPerUnit = 0;
+
+      if ('machine_price_per_unit' in item) {
+        machinePricePerUnit = toNumber(item.machine_price_per_unit);
+        vatPerUnit = toNumber(item.vat_per_unit ?? item.vatPerUnit ?? 0);
+      } else if ('subtotal' in item && originalQty > 0) {
+        // subtotal often contains machine price total for full qty
+        machinePricePerUnit = toNumber(item.subtotal) / originalQty;
+        vatPerUnit = toNumber(item.vatAmount ?? item.vat_amount ?? 0) / originalQty;
+      } else if ('unit_price_incl_vat' in item) {
+        const incl = toNumber(item.unit_price_incl_vat);
+        // If vat_per_unit provided use that, otherwise derive from vatRate
+        if ('vat_per_unit' in item) {
+          vatPerUnit = toNumber(item.vat_per_unit);
+          machinePricePerUnit = incl - vatPerUnit;
+        } else {
+          // derive base price using vatRate
+          machinePricePerUnit = incl / (1 + vatRate);
+          vatPerUnit = incl - machinePricePerUnit;
+        }
+      } else if ('unitPrice' in item && ('vatPercentage' in item || vatRate)) {
+        // legacy: unitPrice is incl VAT
+        const incl = toNumber(item.unitPrice);
+        const pct = toNumber(item.vatPercentage) ? toNumber(item.vatPercentage) / 100 : vatRate;
+        machinePricePerUnit = incl / (1 + pct);
+        vatPerUnit = incl - machinePricePerUnit;
+      } else {
+        // Fallback: try unitPrice as base
+        machinePricePerUnit = toNumber(item.unitPrice ?? item.price ?? 0);
+        vatPerUnit = 0;
+      }
+
+      const itemMachineTotal = machinePricePerUnit * remainingQty;
+      const itemVatTotal = vatPerUnit * remainingQty;
+
+      subtotal += itemMachineTotal;
+      vatAmount += itemVatTotal;
+    });
+
+    // Extras: fallback to order.extrasTotal or sum of extras
+    let extrasTotal = toNumber(order.extrasTotal ?? 0);
+    if ((!extrasTotal || extrasTotal === 0) && Array.isArray(order.extras)) {
+      extrasTotal = order.extras.reduce((s, ex) => s + toNumber(ex.amount ?? ex.price ?? 0), 0);
+    }
+
+    // Calculate totals according to steps
+    // Round to integer amounts (currency in LKR)
+    subtotal = Math.round(subtotal);
+    vatAmount = Math.round(vatAmount);
+
+    let totalBeforeDiscount = subtotal + vatAmount;
+
+    // Handle zero case
+    if (subtotal === 0) {
+      return {
+        subtotal: 0,
+        vatAmount: 0,
+        totalBeforeDiscount: 0,
+        discountAmount: 0,
+        finalTotal: 0,
+        extrasTotal,
+        hasReturns: anyReturned,
+        allReturned
+      };
+    }
+
+    const discountAmount = Math.round(totalBeforeDiscount * (discountRate || 0));
+
+    // Previous behaviour in UI added extras after discount, preserve that
+    let finalTotal = totalBeforeDiscount - discountAmount + extrasTotal;
+    finalTotal = Math.round(finalTotal);
+
+    return {
+      subtotal,
+      vatAmount,
+      totalBeforeDiscount,
+      discountAmount,
+      finalTotal,
+      extrasTotal,
+      hasReturns: anyReturned,
+      allReturned
+    };
+  };
+
   const [orders, setOrders] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [fromDate, setFromDate] = useState('');
@@ -60,17 +195,8 @@ const PastOrders = () => {
   const [thisYearRevenue, setThisYearRevenue] = useState(0);
   const ordersPerPage = 20;
 
-  // Load orders from backend with pagination
-  useEffect(() => {
-    loadOrders();
-  }, [currentPage, searchTerm, fromDate, toDate]); // Reload when filters change
 
-  // Load overall statistics on component mount
-  useEffect(() => {
-    loadOverallStats();
-  }, []); // Only on mount
-
-  const loadOrders = async () => {
+  const loadOrders = React.useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -159,9 +285,14 @@ const PastOrders = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, searchTerm, fromDate, toDate]);
 
-  const loadOverallStats = async () => {
+  // Run loadOrders when filters/pagination change
+  React.useEffect(() => {
+    loadOrders();
+  }, [currentPage, searchTerm, fromDate, toDate, loadOrders]);
+
+  const loadOverallStats = React.useCallback(async () => {
     try {
       // Get total orders count (no pagination, no filters)
       const allOrdersResponse = await pastOrdersAPI.getAll({ page: 1, limit: 1 });
@@ -203,10 +334,15 @@ const PastOrders = () => {
         setThisYearRevenue(0);
       }
     } catch (err) {
-      console.error('Error loading overall stats:', err);
-      // Don't show error to user for stats, just log it
-    }
-  };
+        console.error('Error loading overall stats:', err);
+        // Don't show error to user for stats, just log it
+      }
+    }, []);
+
+    // Run loadOverallStats on mount
+    React.useEffect(() => {
+      loadOverallStats();
+    }, [loadOverallStats]);
 
   // Handle item return
   const handleReturnItem = (orderId, machineId, itemName, totalQuantity, returnedQuantity = 0) => {
@@ -582,7 +718,7 @@ const PastOrders = () => {
                             <div className="flex items-center space-x-2">
                               <CurrencyDollarIcon className="w-4 h-4 text-slate-400" />
                               <span className="text-sm font-medium text-slate-900">
-                                {formatCurrency(order.finalTotal || order.total)}
+                                {formatCurrency(calculateOrderTotals(order).finalTotal || order.total)}
                               </span>
                             </div>
                           </div>
@@ -804,39 +940,46 @@ const PastOrders = () => {
                             )}
                             
                             <div className="border-t border-slate-200 pt-2 space-y-1">
-                              <div className="flex justify-between text-sm text-slate-600">
-                                <span>Subtotal (Machine Prices):</span>
-                                <span>{formatCurrency(order.subtotal || 0)}</span>
-                              </div>
-                              <div className="flex justify-between text-sm text-blue-600">
-                                <span>Total VAT:</span>
-                                <span>{formatCurrency(order.vatAmount || 0)}</span>
-                              </div>
-                              <div className="flex justify-between text-sm font-medium text-slate-700">
-                                <span>Total Before Discount:</span>
-                                <span>{formatCurrency(order.totalBeforeDiscount || (order.subtotal + (order.vatAmount || 0)))}</span>
-                              </div>
-                              {order.discountPercentage > 0 && (
-                                <div className="flex justify-between text-sm text-green-600">
-                                  <span>Discount ({order.discountPercentage}%):</span>
-                                  <span>-{formatCurrency(order.discountAmount || 0)}</span>
-                                </div>
-                              )}
-                              {order.extrasTotal > 0 && (
-                                <div className="flex justify-between text-sm text-slate-600">
-                                  <span>Extra Charges:</span>
-                                  <span>{formatCurrency(order.extrasTotal)}</span>
-                                </div>
-                              )}
-                              <div className="flex justify-between font-bold text-base border-t border-slate-300 pt-1">
-                                <span>Final Total:</span>
-                                <span className={`${order.items?.some(item => item.returnedQuantity > 0) ? 'text-orange-600' : 'text-green-600'}`}>
-                                  {formatCurrency(order.finalTotal || order.total)}
-                                  {order.items?.some(item => item.returnedQuantity > 0) && (
-                                    <span className="ml-2 text-xs text-orange-500 font-normal">(After Returns)</span>
-                                  )}
-                                </span>
-                              </div>
+                              {(() => {
+                                const t = calculateOrderTotals(order);
+                                return (
+                                  <>
+                                    <div className="flex justify-between text-sm text-slate-600">
+                                      <span>Subtotal (Machine Prices):</span>
+                                      <span>{formatCurrency(t.subtotal || 0)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm text-blue-600">
+                                      <span>Total VAT:</span>
+                                      <span>{formatCurrency(t.vatAmount || 0)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm font-medium text-slate-700">
+                                      <span>Total Before Discount:</span>
+                                      <span>{formatCurrency(t.totalBeforeDiscount || (t.subtotal + (t.vatAmount || 0)))}</span>
+                                    </div>
+                                    {order.discountPercentage > 0 && (
+                                      <div className="flex justify-between text-sm text-green-600">
+                                        <span>Discount ({order.discountPercentage}%):</span>
+                                        <span>-{formatCurrency(t.discountAmount || 0)}</span>
+                                      </div>
+                                    )}
+                                    {order.extrasTotal > 0 && (
+                                      <div className="flex justify-between text-sm text-slate-600">
+                                        <span>Extra Charges:</span>
+                                        <span>{formatCurrency(order.extrasTotal)}</span>
+                                      </div>
+                                    )}
+                                    <div className="flex justify-between font-bold text-base border-t border-slate-300 pt-1">
+                                      <span>Final Total:</span>
+                                      <span className={`${t.hasReturns ? 'text-orange-600' : 'text-green-600'}`}>
+                                        {formatCurrency(t.finalTotal || order.total)}
+                                        {t.hasReturns && (
+                                          <span className="ml-2 text-xs text-orange-500 font-normal">(After Returns)</span>
+                                        )}
+                                      </span>
+                                    </div>
+                                  </>
+                                );
+                              })()}
                             </div>
                           </div>
                         </div>
@@ -1156,43 +1299,50 @@ const PastOrders = () => {
                   
                   {/* Total */}
                   <div className="pt-3 border-t border-slate-300">
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm text-slate-600">
-                        <span>Subtotal (Machine Prices):</span>
-                        <span>{formatCurrency(selectedOrder.subtotal || 0)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm text-blue-600">
-                        <span>Total VAT:</span>
-                        <span>{formatCurrency(selectedOrder.vatAmount || 0)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm font-medium text-slate-700">
-                        <span>Total Before Discount:</span>
-                        <span>{formatCurrency(selectedOrder.totalBeforeDiscount || (selectedOrder.subtotal + (selectedOrder.vatAmount || 0)))}</span>
-                      </div>
-                      {selectedOrder.discountPercentage > 0 && (
-                        <div className="flex justify-between text-sm text-green-600">
-                          <span>Discount ({selectedOrder.discountPercentage}%):</span>
-                          <span>-{formatCurrency(selectedOrder.discountAmount || 0)}</span>
-                        </div>
-                      )}
-                      {selectedOrder.extrasTotal > 0 && (
-                        <div className="flex justify-between text-sm text-slate-600">
-                          <span>Extra Charges:</span>
-                          <span>{formatCurrency(selectedOrder.extrasTotal)}</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="border-t border-slate-300 pt-2">
-                      <div className="flex justify-between items-center text-xl font-bold text-slate-800">
-                        <span>Final Total:</span>
-                        <span className={`${selectedOrder.items?.some(item => item.returnedQuantity > 0) ? 'text-orange-600' : 'text-green-600'}`}>
-                          {formatCurrency(selectedOrder.finalTotal || selectedOrder.total)}
-                          {selectedOrder.items?.some(item => item.returnedQuantity > 0) && (
-                            <span className="ml-2 text-xs text-orange-500 font-normal">(Adjusted for Returns)</span>
-                          )}
-                        </span>
-                      </div>
-                    </div>
+                      {(() => {
+                        const t = calculateOrderTotals(selectedOrder);
+                        return (
+                          <>
+                            <div className="space-y-2">
+                              <div className="flex justify-between text-sm text-slate-600">
+                                <span>Subtotal (Machine Prices):</span>
+                                <span>{formatCurrency(t.subtotal || 0)}</span>
+                              </div>
+                              <div className="flex justify-between text-sm text-blue-600">
+                                <span>Total VAT:</span>
+                                <span>{formatCurrency(t.vatAmount || 0)}</span>
+                              </div>
+                              <div className="flex justify-between text-sm font-medium text-slate-700">
+                                <span>Total Before Discount:</span>
+                                <span>{formatCurrency(t.totalBeforeDiscount || (t.subtotal + (t.vatAmount || 0)))}</span>
+                              </div>
+                              {selectedOrder.discountPercentage > 0 && (
+                                <div className="flex justify-between text-sm text-green-600">
+                                  <span>Discount ({selectedOrder.discountPercentage}%):</span>
+                                  <span>-{formatCurrency(t.discountAmount || 0)}</span>
+                                </div>
+                              )}
+                              {selectedOrder.extrasTotal > 0 && (
+                                <div className="flex justify-between text-sm text-slate-600">
+                                  <span>Extra Charges:</span>
+                                  <span>{formatCurrency(selectedOrder.extrasTotal)}</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="border-t border-slate-300 pt-2">
+                              <div className="flex justify-between items-center text-xl font-bold text-slate-800">
+                                <span>Final Total:</span>
+                                <span className={`${t.hasReturns ? 'text-orange-600' : 'text-green-600'}`}>
+                                  {formatCurrency(t.finalTotal || selectedOrder.total)}
+                                  {t.hasReturns && (
+                                    <span className="ml-2 text-xs text-orange-500 font-normal">(Adjusted for Returns)</span>
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()}
                   </div>
                 </div>
               </div>
