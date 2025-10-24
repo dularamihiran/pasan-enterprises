@@ -48,6 +48,11 @@ router.get('/:id', getOrderById);
 // @access  Public
 router.patch('/:id/status', updateOrderStatus);
 
+// @route   PATCH /api/past-orders/:id/payment
+// @desc    Update/Add payment for an order
+// @access  Public
+router.patch('/:id/payment', require('../controllers/ordersController').updatePayment);
+
 // @route   PUT /api/past-orders/return-item/:orderId
 // @desc    Return an item from an order
 // @access  Public

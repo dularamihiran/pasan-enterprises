@@ -51,16 +51,36 @@ const getAllOrders = async (req, res) => {
       .skip(skip)
       .limit(limit);
 
+    // Correct orderStatus based on payment status for each order
+    const correctedOrders = orders.map(order => {
+      const orderObj = order.toObject();
+      
+      // If order has remaining amount but status is 'Completed', change to 'Processing'
+      if (orderObj.orderStatus === 'Completed' && 
+          orderObj.remainingAmount && 
+          orderObj.remainingAmount > 0) {
+        orderObj.orderStatus = 'Processing';
+      }
+      
+      // If order has no remaining amount but status is 'Processing', change to 'Completed'
+      if (orderObj.orderStatus === 'Processing' && 
+          (!orderObj.remainingAmount || orderObj.remainingAmount === 0)) {
+        orderObj.orderStatus = 'Completed';
+      }
+      
+      return orderObj;
+    });
+
     // Get total count for pagination info
     const total = await PastOrder.countDocuments(query);
 
     res.json({
       success: true,
-      count: orders.length,
+      count: correctedOrders.length,
       total,
       page,
       pages: Math.ceil(total / limit),
-      data: orders
+      data: correctedOrders
     });
   } catch (error) {
     console.error('Error fetching orders:', error);
@@ -88,9 +108,25 @@ const getOrderById = async (req, res) => {
       });
     }
 
+    // Correct orderStatus based on payment status
+    const orderObj = order.toObject();
+    
+    // If order has remaining amount but status is 'Completed', change to 'Processing'
+    if (orderObj.orderStatus === 'Completed' && 
+        orderObj.remainingAmount && 
+        orderObj.remainingAmount > 0) {
+      orderObj.orderStatus = 'Processing';
+    }
+    
+    // If order has no remaining amount but status is 'Processing', change to 'Completed'
+    if (orderObj.orderStatus === 'Processing' && 
+        (!orderObj.remainingAmount || orderObj.remainingAmount === 0)) {
+      orderObj.orderStatus = 'Completed';
+    }
+
     res.json({
       success: true,
-      data: order
+      data: orderObj
     });
   } catch (error) {
     console.error('Error fetching order:', error);
@@ -126,9 +162,25 @@ const getOrderByOrderId = async (req, res) => {
       });
     }
 
+    // Correct orderStatus based on payment status
+    const orderObj = order.toObject();
+    
+    // If order has remaining amount but status is 'Completed', change to 'Processing'
+    if (orderObj.orderStatus === 'Completed' && 
+        orderObj.remainingAmount && 
+        orderObj.remainingAmount > 0) {
+      orderObj.orderStatus = 'Processing';
+    }
+    
+    // If order has no remaining amount but status is 'Processing', change to 'Completed'
+    if (orderObj.orderStatus === 'Processing' && 
+        (!orderObj.remainingAmount || orderObj.remainingAmount === 0)) {
+      orderObj.orderStatus = 'Completed';
+    }
+
     res.json({
       success: true,
-      data: order
+      data: orderObj
     });
   } catch (error) {
     console.error('Error fetching order by orderId:', error);
@@ -730,6 +782,67 @@ const getMachineSalesStats = async (req, res) => {
   }
 };
 
+// @desc    Update payment for an order (add payment towards partial)
+// @route   PATCH /api/past-orders/:id/payment
+// @access  Public
+const updatePayment = async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const { newPaidAmount } = req.body; // amount to add to paidAmount
+
+    if (newPaidAmount === undefined || newPaidAmount <= 0) {
+      return res.status(400).json({ success: false, message: 'newPaidAmount must be provided and > 0' });
+    }
+
+    const order = await PastOrder.findById(orderId);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+
+    // Update paid amount and remaining
+    const currentPaid = Number(order.paidAmount || 0);
+    const total = Number(order.finalTotal || order.total || 0);
+    const added = Number(newPaidAmount);
+
+    // Prevent overpayment
+    if (added > Math.max(0, total - currentPaid)) {
+      return res.status(400).json({ success: false, message: 'Payment exceeds remaining amount' });
+    }
+
+    const updatedPaid = Math.round((currentPaid + added) * 100) / 100;
+    const updatedRemaining = Math.round(Math.max(0, total - updatedPaid) * 100) / 100;
+
+    order.paidAmount = updatedPaid;
+    order.remainingAmount = updatedRemaining;
+
+    // Append to payment history
+    order.paymentHistory = order.paymentHistory || [];
+    order.paymentHistory.push({ amount: Math.round(added * 100) / 100, updatedBy: req.user?.name || 'System' });
+
+    // Update paymentStatus
+    order.paymentStatus = (updatedRemaining === 0) ? 'full' : 'partial';
+
+    // Update orderStatus based on payment
+    order.orderStatus = (updatedRemaining === 0) ? 'Completed' : 'Processing';
+
+    // If fully paid, clear dueDate
+    if (updatedRemaining === 0) {
+      order.dueDate = undefined;
+    }
+
+    await order.save();
+
+    const populatedOrder = await PastOrder.findById(orderId).populate('customerId', 'name phone email');
+
+    res.json({
+      success: true,
+      message: 'Payment updated successfully',
+      data: { order: populatedOrder }
+    });
+  } catch (error) {
+    console.error('Error updating payment:', error);
+    res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+  }
+};
+
 module.exports = {
   getAllOrders,
   getOrderById,
@@ -740,5 +853,6 @@ module.exports = {
   deleteOrder,
   returnItem,
   updateOrder,
-  getMachineSalesStats
+  getMachineSalesStats,
+  updatePayment
 };

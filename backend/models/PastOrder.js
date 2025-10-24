@@ -185,11 +185,41 @@ const pastOrderSchema = new mongoose.Schema({
     required: true,
     min: [0, 'Final total cannot be negative']
   },
+  // Payment / financing fields
+  paymentType: {
+    type: String,
+    enum: ['full', 'partial'],
+    default: 'full'
+  },
+  paidAmount: {
+    type: Number,
+    default: 0,
+    min: [0, 'Paid amount cannot be negative']
+  },
+  remainingAmount: {
+    type: Number,
+    default: 0,
+    min: [0, 'Remaining amount cannot be negative']
+  },
+  paymentPeriodDays: {
+    type: Number,
+    default: 60,
+    min: [0, 'Payment period cannot be negative']
+  },
+  dueDate: {
+    type: Date
+  },
   paymentStatus: {
     type: String,
-    enum: ['Pending', 'Paid', 'Partial', 'Refunded'],
-    default: 'Paid'
+    enum: ['pending', 'partial', 'full'],
+    default: 'pending'
   },
+  // Payment history to store incremental payments and timestamps
+  paymentHistory: [{
+    amount: { type: Number, required: true, min: 0 },
+    date: { type: Date, default: Date.now },
+    updatedBy: { type: String, default: 'System' }
+  }],
   orderStatus: {
     type: String,
     enum: ['Completed', 'Processing', 'Cancelled', 'Returned'],

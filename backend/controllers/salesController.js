@@ -20,7 +20,10 @@ const processSale = async (req, res) => {
       notes = '',
       processedBy = 'System',
       vatRate = 15,
-      discountPercentage = 0
+      discountPercentage = 0,
+      paymentType = 'full',
+      paidAmount = 0,
+      paymentPeriodDays = 60
     } = req.body;
 
     // Validate required fields
@@ -131,6 +134,11 @@ const processSale = async (req, res) => {
     // Find or create customer
     const customer = await findOrCreateCustomer(customerInfo);
 
+    // Determine payment and order status
+    const remainingAmt = Math.max(0, Math.round(finalTotal - (paidAmount || 0)));
+    const calcPaymentStatus = (remainingAmt === 0) ? 'full' : ((paidAmount && paidAmount > 0) ? 'partial' : 'pending');
+    const calcOrderStatus = (remainingAmt === 0) ? 'Completed' : 'Processing';
+
     // Create order
     const order = new PastOrder({
       customerId: customer._id,
@@ -152,6 +160,16 @@ const processSale = async (req, res) => {
       extrasTotal,
       total,
       finalTotal,
+      // Payment fields
+      paymentType,
+      paidAmount,
+      remainingAmount: remainingAmt,
+      paymentPeriodDays,
+      dueDate: (paymentType === 'partial' && paymentPeriodDays) ? new Date(Date.now() + paymentPeriodDays * 24 * 60 * 60 * 1000) : undefined,
+      paymentStatus: calcPaymentStatus,
+      orderStatus: calcOrderStatus, // Set based on payment status
+      // Record initial payment history if any amount paid at creation
+      paymentHistory: (paidAmount && paidAmount > 0) ? [{ amount: Math.round(paidAmount * 100) / 100, updatedBy: processedBy || 'System' }] : [],
       notes: notes.trim(),
       processedBy
     });

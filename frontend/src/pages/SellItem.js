@@ -46,6 +46,10 @@ const SellItem = () => {
   // VAT is now handled per-item in cart, this is kept for reference only
   const vatRate = 15; // Default reference VAT rate
   const [discountPercentage, setDiscountPercentage] = useState(0);
+  // Payment fields
+  const [paymentType, setPaymentType] = useState('full');
+  const [paidAmount, setPaidAmount] = useState(0);
+  const [paymentPeriodDays, setPaymentPeriodDays] = useState(60);
 
   const fetchMachines = useCallback(async (page = currentPage, category = selectedCategory, search = searchTerm) => {
     try {
@@ -481,6 +485,26 @@ const SellItem = () => {
         return;
       }
 
+      const finalTotal = getFinalTotal();
+
+      // Validate payment inputs
+      let paidToSend = Number(paidAmount) || 0;
+      if (paymentType === 'partial') {
+        if (paidToSend <= 0) {
+          setError('Paid amount must be greater than 0 for partial payments.');
+          setProcessing(false);
+          return;
+        }
+        if (paidToSend >= finalTotal) {
+          setError('For partial payments the paid amount must be less than the final total. Use Full Payment instead.');
+          setProcessing(false);
+          return;
+        }
+      } else {
+        // full payment -> mark paid amount as full total
+        paidToSend = finalTotal;
+      }
+
       const saleData = {
         customerInfo: {
           name: customerInfo.name.trim(),
@@ -499,7 +523,12 @@ const SellItem = () => {
         vatRate: vatRate, // Keep for reference
         discountPercentage: discountPercentage,
         notes: '',
-        processedBy: 'Admin'
+        processedBy: 'Admin',
+        // Payment metadata
+        paymentType: paymentType,
+        paidAmount: Math.round(paidToSend * 100) / 100,
+        paymentPeriodDays: paymentType === 'partial' ? (Number(paymentPeriodDays) || 60) : 0,
+        remainingAmount: Math.round((finalTotal - paidToSend) * 100) / 100
       };
 
       console.log('Processing sale with data:', saleData);
@@ -1084,6 +1113,41 @@ const SellItem = () => {
             className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50"
             rows="2"
           />
+        </div>
+
+        {/* Payment Options (above action buttons) */}
+        <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div className="md:col-span-1">
+            <label className="block text-sm font-medium text-slate-700 mb-2">Payment Type</label>
+            <select value={paymentType} onChange={(e) => setPaymentType(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white/50">
+              <option value="full">Full Payment</option>
+              <option value="partial">Partial Payment</option>
+            </select>
+          </div>
+
+          {paymentType === 'partial' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Paid Amount</label>
+                <input type="number" min="0" value={paidAmount} onChange={(e) => setPaidAmount(Number(e.target.value) || 0)} className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white/50" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Payment Period (days)</label>
+                <input type="number" min="0" value={paymentPeriodDays} onChange={(e) => setPaymentPeriodDays(parseInt(e.target.value) || 0)} className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white/50" />
+              </div>
+            </>
+          )}
+
+          {paymentType === 'partial' && (
+            <div className="md:col-span-3 text-sm text-slate-600">
+              <div className="flex items-center justify-between">
+                <div>Remaining Amount:</div>
+                <div className="font-semibold">Rs. {(getFinalTotal() - (paidAmount || 0)).toFixed(2)}</div>
+              </div>
+            </div>
+          )}
+
         </div>
 
         {/* Process Sale Button */}

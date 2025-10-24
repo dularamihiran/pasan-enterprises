@@ -143,6 +143,8 @@ export const pastOrdersAPI = {
   
   // Update/Edit order
   update: (orderId, data) => api.put(`/past-orders/${orderId}`, data),
+  // Update payment for an order
+  updatePayment: (orderId, data) => api.patch(`/past-orders/${orderId}/payment`, data),
 };
 
 // User API

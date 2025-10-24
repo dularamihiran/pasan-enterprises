@@ -37,6 +37,32 @@ const PastOrders = () => {
     return `${day}/${month}/${year} ${hours}:${minutes}`;
   };
 
+  // Helper function to calculate remaining days until due date
+  const getRemainingDays = (dueDate) => {
+    if (!dueDate) return null;
+    const today = new Date();
+    const due = new Date(dueDate);
+    const diffTime = due - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  // Helper function to get due date status and color
+  const getDueDateStatus = (dueDate) => {
+    const remainingDays = getRemainingDays(dueDate);
+    if (remainingDays === null) return { text: '', color: '' };
+    
+    if (remainingDays < 0) {
+      return { text: `Overdue by ${Math.abs(remainingDays)} days`, color: 'text-red-600 bg-red-50' };
+    } else if (remainingDays === 0) {
+      return { text: 'Due today', color: 'text-orange-600 bg-orange-50' };
+    } else if (remainingDays <= 7) {
+      return { text: `${remainingDays} days remaining`, color: 'text-orange-600 bg-orange-50' };
+    } else {
+      return { text: `${remainingDays} days remaining`, color: 'text-green-600 bg-green-50' };
+    }
+  };
+
   // (removed unused orderHasReturns helper; calculation uses flags computed inside calculateOrderTotals)
 
   // Robust order totals calculator that supports both new and legacy item shapes.
@@ -186,6 +212,12 @@ const PastOrders = () => {
   const [showReturnModal, setShowReturnModal] = useState(false); // Show return quantity modal
   const [returnModalData, setReturnModalData] = useState(null); // {orderId, machineId, itemName, maxQty, currentReturned}
   const [returnQuantity, setReturnQuantity] = useState(1); // Quantity to return
+  // Payment modal state
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentModalOrder, setPaymentModalOrder] = useState(null);
+  const [paymentInputAmount, setPaymentInputAmount] = useState('');
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
   
   // Server-side pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -418,6 +450,65 @@ const PastOrders = () => {
     } finally {
       setReturningItem(null);
       setReturnModalData(null);
+    }
+  };
+
+  // Open Add Payment modal for an order
+  const openPaymentModal = (order) => {
+    setPaymentModalOrder(order);
+    setPaymentInputAmount('');
+    setPaymentError('');
+    setShowPaymentModal(true);
+  };
+
+  const closePaymentModal = () => {
+    setShowPaymentModal(false);
+    setPaymentModalOrder(null);
+    setPaymentInputAmount('');
+    setPaymentError('');
+    setPaymentProcessing(false);
+  };
+
+  const submitPayment = async () => {
+    if (!paymentModalOrder) return;
+    const order = paymentModalOrder;
+    const totals = calculateOrderTotals(order);
+    const finalTotal = totals.finalTotal || order.finalTotal || order.total || 0;
+    const paid = Number(order.paidAmount ?? order.paid_amount ?? 0) || 0;
+    const remaining = Number(order.remainingAmount ?? order.remaining_amount ?? Math.max(0, finalTotal - paid));
+
+    const newPaidAmount = Number(paymentInputAmount);
+    if (!newPaidAmount || newPaidAmount <= 0) {
+      setPaymentError('Please enter a valid payment amount greater than 0');
+      return;
+    }
+    if (newPaidAmount > remaining) {
+      setPaymentError(`Payment cannot exceed remaining amount (${formatCurrency(remaining)})`);
+      return;
+    }
+
+    try {
+      setPaymentProcessing(true);
+      setPaymentError('');
+      const resp = await pastOrdersAPI.updatePayment(order._id, { newPaidAmount });
+      if (resp.data && resp.data.success) {
+        // Refresh order details and list
+        if (selectedOrder && selectedOrder._id === order._id) {
+          setSelectedOrder(resp.data.data.order);
+        }
+        await loadOrders();
+        alert('Payment recorded successfully');
+        closePaymentModal();
+      } else {
+        const msg = resp.data?.message || 'Failed to record payment';
+        setPaymentError(msg);
+      }
+    } catch (err) {
+      console.error('Payment error:', err);
+      const info = handleApiError(err);
+      setPaymentError(info.message || 'Payment failed');
+    } finally {
+      setPaymentProcessing(false);
     }
   };
 
@@ -686,7 +777,6 @@ const PastOrders = () => {
         ) : (
           <div className="divide-y divide-slate-200">
             {displayedOrders.map((order) => {
-              const StatusIcon = getStatusIcon(order.orderStatus);
               const isExpanded = expandedOrders.has(order._id);
               
               return (
@@ -724,11 +814,11 @@ const PastOrders = () => {
                           </div>
                           <div className="mt-2">
                             <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
-                              order.paymentStatus === 'Paid' 
+                              order.paymentStatus === 'Paid' || order.paymentStatus === 'full' || order.paymentStatus === 'Full'
                                 ? 'bg-green-100 text-green-800'
-                                : order.paymentStatus === 'Pending'
+                                : order.paymentStatus === 'Pending' || order.paymentStatus === 'pending'
                                 ? 'bg-yellow-100 text-yellow-800' 
-                                : order.paymentStatus === 'Partial'
+                                : order.paymentStatus === 'Partial' || order.paymentStatus === 'partial'
                                 ? 'bg-orange-100 text-orange-800'
                                 : 'bg-red-100 text-red-800'
                             }`}>
@@ -739,16 +829,55 @@ const PastOrders = () => {
                                 by {order.processedBy}
                               </span>
                             )}
+                          {/* Payment summary */}
+                          <div className="mt-2 text-sm text-slate-700">
+                            <div className="flex items-center space-x-3">
+                              <span>Paid:</span>
+                              <span className="font-semibold">{formatCurrency(order.paidAmount ?? order.paid_amount ?? 0)}</span>
+                              <span className="text-slate-400">|</span>
+                              <span>Remaining:</span>
+                              <span className="font-semibold text-orange-600">{formatCurrency(order.remainingAmount ?? order.remaining_amount ?? Math.max(0, (order.finalTotal || order.total || calculateOrderTotals(order).finalTotal) - (order.paidAmount || order.paid_amount || 0)))}</span>
+                            </div>
+                            {/* Show due date and remaining days for partial payments */}
+                            {(order.paymentStatus === 'Partial' || order.paymentStatus === 'partial' || order.paymentStatus === 'Pending' || order.paymentStatus === 'pending') && order.dueDate && (() => {
+                              const dueDateStatus = getDueDateStatus(order.dueDate);
+                              return (
+                                <div className={`mt-1 text-xs px-2 py-1 rounded inline-block ${dueDateStatus.color}`}>
+                                  Due: {formatDate(order.dueDate)} • {dueDateStatus.text}
+                                </div>
+                              );
+                            })()}
+                          </div>
                           </div>
                         </div>
                       </div>
                     </div>
                     
                     <div className="flex items-center space-x-4">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(order.orderStatus)}`}>
-                        <StatusIcon className="w-3 h-3 mr-1" />
-                        {order.orderStatus}
-                      </span>
+                      {(() => {
+                        // Determine actual status based on payment
+                        let displayStatus = order.orderStatus;
+                        
+                        // If orderStatus is 'Completed' but payment is not full, override to 'Processing'
+                        if (order.orderStatus === 'Completed' && 
+                            (order.paymentStatus === 'partial' || order.paymentStatus === 'Partial' || 
+                             order.paymentStatus === 'pending' || order.paymentStatus === 'Pending' ||
+                             (order.remainingAmount && order.remainingAmount > 0))) {
+                          displayStatus = 'Processing';
+                        }
+                        
+                        const StatusIcon = getStatusIcon(displayStatus);
+                        
+                        return (
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(displayStatus)}`}>
+                            <StatusIcon className="w-3 h-3 mr-1" />
+                            {displayStatus}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                    
+                    <div className="flex items-center space-x-4">
                       
                       <div className="flex space-x-2">
                         <button
@@ -758,6 +887,15 @@ const PastOrders = () => {
                         >
                           <EyeIcon className="w-4 h-4" />
                         </button>
+                        {(order.paymentStatus === 'Partial' || order.paymentStatus === 'Pending') && (
+                          <button
+                            onClick={() => openPaymentModal(order)}
+                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-all duration-200"
+                            title="Add Payment"
+                          >
+                            <CurrencyDollarIcon className="w-4 h-4" />
+                          </button>
+                        )}
                         
                         <button
                           onClick={() => toggleOrderExpansion(order._id)}
@@ -995,6 +1133,8 @@ const PastOrders = () => {
                         )}
                       </div>
                     </div>
+
+                    
                   )}
                 </div>
               );
@@ -1087,15 +1227,30 @@ const PastOrders = () => {
               {/* Order Status and Date */}
               <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
                 <div className="flex items-center space-x-3">
-                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(selectedOrder.orderStatus)}`}>
-                    {selectedOrder.orderStatus}
-                  </span>
+                  {(() => {
+                    // Determine actual status based on payment
+                    let displayStatus = selectedOrder.orderStatus;
+                    
+                    // If orderStatus is 'Completed' but payment is not full, override to 'Processing'
+                    if (selectedOrder.orderStatus === 'Completed' && 
+                        (selectedOrder.paymentStatus === 'partial' || selectedOrder.paymentStatus === 'Partial' || 
+                         selectedOrder.paymentStatus === 'pending' || selectedOrder.paymentStatus === 'Pending' ||
+                         (selectedOrder.remainingAmount && selectedOrder.remainingAmount > 0))) {
+                      displayStatus = 'Processing';
+                    }
+                    
+                    return (
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(displayStatus)}`}>
+                        {displayStatus}
+                      </span>
+                    );
+                  })()}
                   <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
-                    selectedOrder.paymentStatus === 'Paid' 
+                    selectedOrder.paymentStatus === 'Paid' || selectedOrder.paymentStatus === 'full' || selectedOrder.paymentStatus === 'Full'
                       ? 'bg-green-100 text-green-800'
-                      : selectedOrder.paymentStatus === 'Pending'
+                      : selectedOrder.paymentStatus === 'Pending' || selectedOrder.paymentStatus === 'pending'
                       ? 'bg-yellow-100 text-yellow-800' 
-                      : selectedOrder.paymentStatus === 'Partial'
+                      : selectedOrder.paymentStatus === 'Partial' || selectedOrder.paymentStatus === 'partial'
                       ? 'bg-orange-100 text-orange-800'
                       : 'bg-red-100 text-red-800'
                   }`}>
@@ -1347,6 +1502,91 @@ const PastOrders = () => {
                 </div>
               </div>
               
+              {/* Payment Information Section - Editable */}
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900 mb-3">Payment Information</h3>
+                <div className="p-4 bg-slate-50 rounded-xl space-y-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-slate-500">Payment Status</p>
+                      <p className={`font-semibold ${
+                        selectedOrder.paymentStatus === 'full' || selectedOrder.paymentStatus === 'Paid' 
+                          ? 'text-green-600' 
+                          : selectedOrder.paymentStatus === 'partial' || selectedOrder.paymentStatus === 'Partial'
+                          ? 'text-orange-600'
+                          : 'text-yellow-600'
+                      }`}>
+                        {selectedOrder.paymentStatus}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-500">Payment Type</p>
+                      <p className="font-medium">{selectedOrder.paymentType || 'full'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-500">Paid Amount</p>
+                      <p className="font-semibold text-green-600">{formatCurrency(selectedOrder.paidAmount || 0)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-500">Remaining Amount</p>
+                      <p className="font-semibold text-orange-600">{formatCurrency(selectedOrder.remainingAmount || 0)}</p>
+                    </div>
+                    {selectedOrder.dueDate && (
+                      <>
+                        <div>
+                          <p className="text-sm text-slate-500">Due Date</p>
+                          <p className="font-medium">{formatDate(selectedOrder.dueDate)}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-slate-500">Days Remaining</p>
+                          {(() => {
+                            const dueDateStatus = getDueDateStatus(selectedOrder.dueDate);
+                            return (
+                              <p className={`font-semibold ${
+                                getRemainingDays(selectedOrder.dueDate) < 0 ? 'text-red-600' :
+                                getRemainingDays(selectedOrder.dueDate) <= 7 ? 'text-orange-600' :
+                                'text-green-600'
+                              }`}>
+                                {dueDateStatus.text}
+                              </p>
+                            );
+                          })()}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  
+                  {/* Payment History */}
+                  {selectedOrder.paymentHistory && selectedOrder.paymentHistory.length > 0 && (
+                    <div className="pt-3 border-t border-slate-200">
+                      <p className="text-sm font-medium text-slate-700 mb-2">Payment History:</p>
+                      <div className="space-y-2">
+                        {selectedOrder.paymentHistory.map((payment, idx) => (
+                          <div key={idx} className="flex justify-between text-sm bg-white p-2 rounded">
+                            <span className="text-slate-600">{formatDateTime(payment.date)}</span>
+                            <span className="font-medium text-green-600">{formatCurrency(payment.amount)}</span>
+                            <span className="text-slate-500 text-xs">by {payment.updatedBy}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Add Payment Button */}
+                  {(selectedOrder.paymentStatus === 'Partial' || selectedOrder.paymentStatus === 'partial' || selectedOrder.paymentStatus === 'Pending' || selectedOrder.paymentStatus === 'pending') && (
+                    <div className="pt-3 border-t border-slate-200">
+                      <button 
+                        onClick={() => openPaymentModal(selectedOrder)} 
+                        className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"
+                      >
+                        <CurrencyDollarIcon className="w-5 h-5 mr-2" />
+                        Add Payment
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Notes Section */}
               {selectedOrder.notes && (
                 <div>
@@ -1477,6 +1717,40 @@ const PastOrders = () => {
               >
                 <XCircleIcon className="w-5 h-5 mr-2" />
                 Confirm Return
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Payment Modal */}
+      {showPaymentModal && paymentModalOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold">Add Payment - {formatOrderId(paymentModalOrder.orderId)}</h3>
+              <button onClick={closePaymentModal} className="p-2 hover:bg-slate-100 rounded-lg">
+                <XCircleIcon className="w-6 h-6 text-slate-500" />
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-sm text-slate-600">Customer: <span className="font-medium">{paymentModalOrder.customerInfo?.name}</span></p>
+              <p className="text-sm text-slate-600">Final Total: <span className="font-medium">{formatCurrency(paymentModalOrder.finalTotal ?? paymentModalOrder.total ?? calculateOrderTotals(paymentModalOrder).finalTotal)}</span></p>
+              <p className="text-sm text-slate-600">Already Paid: <span className="font-medium">{formatCurrency(paymentModalOrder.paidAmount ?? paymentModalOrder.paid_amount ?? 0)}</span></p>
+              <p className="text-sm text-slate-600">Remaining: <span className="font-medium text-orange-600">{formatCurrency(paymentModalOrder.remainingAmount ?? paymentModalOrder.remaining_amount ?? Math.max(0, (paymentModalOrder.finalTotal || paymentModalOrder.total || calculateOrderTotals(paymentModalOrder).finalTotal) - (paymentModalOrder.paidAmount || paymentModalOrder.paid_amount || 0)))}</span></p>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-700 mb-2">Payment Amount</label>
+              <input type="number" min="0" step="1" value={paymentInputAmount} onChange={(e) => setPaymentInputAmount(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg" />
+              {paymentError && <div className="mt-2 text-sm text-red-600">{paymentError}</div>}
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={closePaymentModal} className="flex-1 px-4 py-2 bg-slate-100 rounded-lg">Cancel</button>
+              <button onClick={submitPayment} disabled={paymentProcessing} className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg">
+                {paymentProcessing ? 'Recording...' : 'Record Payment'}
               </button>
             </div>
           </div>
