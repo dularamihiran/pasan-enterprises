@@ -45,6 +45,11 @@ const processSale = async (req, res) => {
     const processedItems = [];
     let subtotal = 0;
 
+    console.log(`\n🛒 PROCESSING SALE WITH ${items.length} ITEMS:`);
+    items.forEach((item, index) => {
+      console.log(`   Item ${index + 1}: machineId=${item.machineId}, quantity=${item.quantity}`);
+    });
+
     for (const item of items) {
       if (!item.machineId || !item.quantity || item.quantity <= 0) {
         throw new Error('Invalid item data: machineId and quantity are required');
@@ -96,11 +101,24 @@ const processSale = async (req, res) => {
         vatAmount: itemVatAmount,
         warrantyMonths: warrantyMonths,
         subtotal: itemSubtotal, // Base price * quantity (without VAT)
-        totalWithVAT: itemTotalWithVAT
+        totalWithVAT: itemTotalWithVAT,
+        // Store per-unit values for accurate calculations after returns
+        machine_price_per_unit: basePricePerUnit,
+        vat_per_unit: vatAmountPerUnit,
+        original_quantity: item.quantity
       });
 
       // Update machine stock
+      const oldQuantity = machine.quantity;
       machine.quantity -= item.quantity;
+      const newQuantity = machine.quantity;
+      
+      console.log(`📦 STOCK UPDATE: ${machine.name}`);
+      console.log(`   Old Stock: ${oldQuantity}`);
+      console.log(`   Sold Quantity: ${item.quantity}`);
+      console.log(`   New Stock: ${newQuantity}`);
+      console.log(`   Calculation: ${oldQuantity} - ${item.quantity} = ${newQuantity}`);
+      
       await machine.save({ session });
     }
 

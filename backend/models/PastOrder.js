@@ -72,6 +72,19 @@ const orderItemSchema = new mongoose.Schema({
   },
   returnedAt: {
     type: Date
+  },
+  // Per-unit prices (stored to maintain accuracy after returns)
+  machine_price_per_unit: {
+    type: Number,
+    min: [0, 'Machine price per unit cannot be negative']
+  },
+  vat_per_unit: {
+    type: Number,
+    min: [0, 'VAT per unit cannot be negative']
+  },
+  original_quantity: {
+    type: Number,
+    min: [1, 'Original quantity must be at least 1']
   }
 }, { _id: false }); // Don't create separate _id for sub-documents
 
@@ -251,6 +264,12 @@ pastOrderSchema.index({ 'items.machineId': 1 }); // Index for machine sales stat
 pastOrderSchema.pre('save', function(next) {
   console.log(`\n🔄 Pre-Save Middleware Running for Order: ${this.orderId}`);
   
+  let currentSubtotal = 0;   // Subtotal after returns
+  let currentVatAmount = 0;  // VAT after returns
+  let originalSubtotal = 0;  // Original subtotal (before returns)
+  let originalVatAmount = 0; // Original VAT (before returns)
+  let returnedValue = 0;     // Total value of returned items (incl VAT)
+  
   // Calculate per-item VAT and totals
   this.items.forEach((item, index) => {
     // The unitPrice stored already includes VAT
@@ -260,60 +279,108 @@ pastOrderSchema.pre('save', function(next) {
     // Calculate base price: Base Price = Unit Price - VAT
     const basePricePerUnit = item.unitPrice - vatAmountPerUnit;
     
-    // Calculate ACTUAL quantity (original quantity - returned quantity)
-    const actualQuantity = item.quantity - (item.returnedQuantity || 0);
+    // Unit price including VAT
+    const unitPriceInclVAT = item.unitPrice;
+    
+    // Calculate quantities
+    const originalQuantity = item.quantity;
+    const returnedQuantity = item.returnedQuantity || 0;
+    const actualQuantity = originalQuantity - returnedQuantity;
     
     console.log(`   📦 Item ${index + 1}: ${item.machineId}`);
-    console.log(`      Original Quantity: ${item.quantity}`);
-    console.log(`      Returned Quantity: ${item.returnedQuantity || 0}`);
+    console.log(`      Original Quantity: ${originalQuantity}`);
+    console.log(`      Returned Quantity: ${returnedQuantity}`);
     console.log(`      Actual Quantity: ${actualQuantity}`);
-    console.log(`      Unit Price (with VAT): ${item.unitPrice}`);
+    console.log(`      Unit Price (with VAT): ${unitPriceInclVAT}`);
     console.log(`      Base Price per Unit: ${basePricePerUnit.toFixed(2)}`);
     console.log(`      VAT per Unit: ${vatAmountPerUnit.toFixed(2)}`);
     
-    // Calculate subtotal for this item (base price × ACTUAL quantity, without VAT)
+    // Calculate ORIGINAL totals (before any returns)
+    originalSubtotal += basePricePerUnit * originalQuantity;
+    originalVatAmount += vatAmountPerUnit * originalQuantity;
+    
+    // Calculate CURRENT totals (after returns)
+    currentSubtotal += basePricePerUnit * actualQuantity;
+    currentVatAmount += vatAmountPerUnit * actualQuantity;
+    
+    // Calculate RETURNED value (unit price incl VAT × returned quantity)
+    returnedValue += unitPriceInclVAT * returnedQuantity;
+    
+    // Store per-item values for CURRENT state (after returns)
+    // NOTE: These represent the current totals, not per-unit values
     item.subtotal = basePricePerUnit * actualQuantity;
-    
-    // Calculate total VAT amount for this item
     item.vatAmount = vatAmountPerUnit * actualQuantity;
+    item.totalWithVAT = unitPriceInclVAT * actualQuantity;
     
-    // Total with VAT is simply unitPrice × ACTUAL quantity
-    item.totalWithVAT = item.unitPrice * actualQuantity;
+    // Store per-unit values (these should NEVER change regardless of returns)
+    // This ensures frontend can always calculate correctly
+    if (!item.machine_price_per_unit) {
+      item.machine_price_per_unit = basePricePerUnit;
+    }
+    if (!item.vat_per_unit) {
+      item.vat_per_unit = vatAmountPerUnit;
+    }
+    if (!item.original_quantity && !item.returnedQuantity) {
+      // First time, store original quantity
+      item.original_quantity = item.quantity;
+    }
     
-    console.log(`      Item Subtotal (base × actual qty): ${item.subtotal.toFixed(2)}`);
+    console.log(`      Original Item Total (incl VAT): ${(unitPriceInclVAT * originalQuantity).toFixed(2)}`);
+    console.log(`      Returned Value: ${(unitPriceInclVAT * returnedQuantity).toFixed(2)}`);
+    console.log(`      Current Item Subtotal: ${item.subtotal.toFixed(2)}`);
     console.log(`      Item VAT Amount: ${item.vatAmount.toFixed(2)}`);
-    console.log(`      Item Total with VAT: ${item.totalWithVAT.toFixed(2)}`);
+    console.log(`      Stored machine_price_per_unit: ${item.machine_price_per_unit}`);
+    console.log(`      Stored vat_per_unit: ${item.vat_per_unit}`);
   });
   
-  // Calculate subtotal from items (base prices only, no VAT)
-  this.subtotal = this.items.reduce((sum, item) => sum + item.subtotal, 0);
+  // STEP 1: Calculate original total before discount
+  const originalTotalBeforeDiscount = originalSubtotal + originalVatAmount;
   
-  // Calculate total VAT from all items
-  this.vatAmount = this.items.reduce((sum, item) => sum + item.vatAmount, 0);
-  
-  // Calculate total before discount (subtotal + VAT)
-  this.totalBeforeDiscount = this.subtotal + this.vatAmount;
-  
-  // Calculate discount amount
-  this.discountAmount = (this.totalBeforeDiscount * this.discountPercentage) / 100;
+  // STEP 2: Calculate discount amount (ALWAYS from original total - FIXED)
+  const discountAmount = (originalTotalBeforeDiscount * this.discountPercentage) / 100;
+  this.discountAmount = discountAmount;
   
   // Calculate extras total
   this.extrasTotal = this.extras.reduce((sum, extra) => sum + extra.amount, 0);
   
+  // STEP 3: Calculate final total BEFORE returns
+  const finalTotalBeforeReturn = originalTotalBeforeDiscount - discountAmount + this.extrasTotal;
+  
+  // STEP 4: Calculate final total AFTER returns
+  // finalTotalAfterReturn = finalTotalBeforeReturn - returnedValue
+  this.finalTotal = finalTotalBeforeReturn - returnedValue;
+  
+  // Store current totals in order (for display purposes)
+  this.subtotal = currentSubtotal;
+  this.vatAmount = currentVatAmount;
+  this.totalBeforeDiscount = currentSubtotal + currentVatAmount;
+  
   // Calculate total (for backward compatibility)
   this.total = this.subtotal + this.extrasTotal;
   
-  // Calculate final total (totalBeforeDiscount - discount + extras)
-  this.finalTotal = this.totalBeforeDiscount - this.discountAmount + this.extrasTotal;
-  
-  console.log(`💰 Order totals calculated:`);
-  console.log(`   Subtotal (Base Prices): ${this.subtotal}`);
-  console.log(`   Total VAT: ${this.vatAmount}`);
-  console.log(`   Total Before Discount: ${this.totalBeforeDiscount}`);
-  console.log(`   Discount (${this.discountPercentage}%): ${this.discountAmount}`);
-  console.log(`   Extras: ${this.extrasTotal}`);
-  console.log(`   Final Total: ${this.finalTotal}`);
-  console.log(`🆔 Order ID: ${this.orderId}`);
+  console.log(`\n💰 Order Calculation Summary:`);
+  console.log(`   ================================`);
+  console.log(`   ORIGINAL ORDER (before returns):`);
+  console.log(`   Original Subtotal: ${originalSubtotal.toFixed(2)}`);
+  console.log(`   Original VAT: ${originalVatAmount.toFixed(2)}`);
+  console.log(`   Original Total Before Discount: ${originalTotalBeforeDiscount.toFixed(2)}`);
+  console.log(`   Discount (${this.discountPercentage}%): -${discountAmount.toFixed(2)}`);
+  console.log(`   Extras: +${this.extrasTotal.toFixed(2)}`);
+  console.log(`   Final Total Before Return: ${finalTotalBeforeReturn.toFixed(2)}`);
+  console.log(`   ================================`);
+  console.log(`   RETURNS:`);
+  console.log(`   Returned Value: -${returnedValue.toFixed(2)}`);
+  console.log(`   ================================`);
+  console.log(`   CURRENT ORDER (after returns):`);
+  console.log(`   Current Subtotal: ${this.subtotal.toFixed(2)}`);
+  console.log(`   Current VAT: ${this.vatAmount.toFixed(2)}`);
+  console.log(`   Current Total Before Discount: ${this.totalBeforeDiscount.toFixed(2)}`);
+  console.log(`   Discount (FIXED): -${this.discountAmount.toFixed(2)}`);
+  console.log(`   Extras: +${this.extrasTotal.toFixed(2)}`);
+  console.log(`   ================================`);
+  console.log(`   ✅ FINAL TOTAL: ${this.finalTotal.toFixed(2)}`);
+  console.log(`   ================================`);
+  console.log(`🆔 Order ID: ${this.orderId}\n`);
   
   next();
 });
