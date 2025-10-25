@@ -532,6 +532,51 @@ const returnItem = async (req, res) => {
     console.log(`   New Final Total: ${order.finalTotal.toFixed(2)}`);
     console.log(`   Reduction: ${(oldFinalTotal - order.finalTotal).toFixed(2)}`);
 
+    // ===== HANDLE PARTIAL PAYMENT RECALCULATION =====
+    const newFinalTotal = order.finalTotal;
+    const oldPaidAmount = order.paidAmount || 0;
+    const oldRemainingAmount = order.remainingAmount || 0;
+    
+    let newRemainingAmount = newFinalTotal - oldPaidAmount;
+    let refundNeeded = 0;
+    
+    // If remaining becomes negative, customer overpaid and needs refund
+    if (newRemainingAmount < 0) {
+      refundNeeded = Math.abs(newRemainingAmount);
+      newRemainingAmount = 0;
+      
+      console.log(`💸 REFUND NEEDED: Customer paid LKR ${oldPaidAmount.toFixed(2)} but new total is LKR ${newFinalTotal.toFixed(2)}`);
+      console.log(`   Refund Amount: LKR ${refundNeeded.toFixed(2)}`);
+    }
+    
+    // Update payment fields
+    order.remainingAmount = Math.round(newRemainingAmount * 100) / 100;
+    
+    // Update payment status
+    if (newRemainingAmount === 0 && refundNeeded === 0) {
+      order.paymentStatus = 'full';
+      order.orderStatus = 'Completed';
+    } else if (oldPaidAmount > 0) {
+      order.paymentStatus = 'partial';
+      order.orderStatus = 'Processing';
+    } else {
+      order.paymentStatus = 'pending';
+      order.orderStatus = 'Processing';
+    }
+    
+    // Save payment updates
+    await order.save();
+    
+    console.log(`💰 Payment Recalculated:`);
+    console.log(`   Old Total: LKR ${oldFinalTotal.toFixed(2)}`);
+    console.log(`   New Total: LKR ${newFinalTotal.toFixed(2)}`);
+    console.log(`   Paid Amount: LKR ${oldPaidAmount.toFixed(2)}`);
+    console.log(`   Old Remaining: LKR ${oldRemainingAmount.toFixed(2)}`);
+    console.log(`   New Remaining: LKR ${newRemainingAmount.toFixed(2)}`);
+    console.log(`   Refund Needed: LKR ${refundNeeded.toFixed(2)}`);
+    console.log(`   Payment Status: ${order.paymentStatus}`);
+    console.log(`   Order Status: ${order.orderStatus}`);
+
     // Update the machine stock - increase quantity
     const machine = await Machine.findById(machineId);
 
@@ -593,6 +638,13 @@ const returnItem = async (req, res) => {
           oldFinalTotal: oldFinalTotal.toFixed(2),
           newFinalTotal: order.finalTotal.toFixed(2),
           totalReduction: (oldFinalTotal - order.finalTotal).toFixed(2)
+        },
+        paymentInfo: {
+          paidAmount: (order.paidAmount || 0).toFixed(2),
+          remainingAmount: (order.remainingAmount || 0).toFixed(2),
+          refundNeeded: refundNeeded.toFixed(2),
+          paymentStatus: order.paymentStatus,
+          orderStatus: order.orderStatus
         }
       }
     });

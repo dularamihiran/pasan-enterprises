@@ -63,6 +63,31 @@ const PastOrders = () => {
     }
   };
 
+  // Helper function to calculate payment status and detect refunds
+  const getPaymentStatus = (order) => {
+    const finalTotal = order.finalTotal || order.total || 0;
+    const paidAmount = order.paidAmount || 0;
+    const calculatedRemaining = finalTotal - paidAmount;
+    const storedRemaining = order.remainingAmount || 0;
+    
+    // Determine if refund is needed (customer overpaid)
+    const isRefundNeeded = calculatedRemaining < 0;
+    const refundAmount = isRefundNeeded ? Math.abs(calculatedRemaining) : 0;
+    const remainingAmount = isRefundNeeded ? 0 : (storedRemaining || Math.max(0, calculatedRemaining));
+    
+    return {
+      finalTotal,
+      paidAmount,
+      remainingAmount,
+      refundAmount,
+      isRefundNeeded,
+      calculatedRemaining,
+      label: isRefundNeeded ? 'Refund' : 'Remaining',
+      colorClass: isRefundNeeded ? 'text-red-600' : 'text-orange-600',
+      displayAmount: isRefundNeeded ? refundAmount : remainingAmount
+    };
+  };
+
   // (removed unused orderHasReturns helper; calculation uses flags computed inside calculateOrderTotals)
 
   // Robust order totals calculator that supports both new and legacy item shapes.
@@ -88,14 +113,18 @@ const PastOrders = () => {
     };
 
     const vatRate = ('vat_rate' in order) ? toNumber(order.vat_rate) : (toNumber(order.vatPercentage) ? toNumber(order.vatPercentage) / 100 : (toNumber(order.vatRate) || 0.18));
-    // discount_rate may be fraction (0.1) or percentage (10)
+    
+    // Get discount rate
     let discountRate = 0;
     if ('discount_rate' in order) discountRate = toNumber(order.discount_rate);
     else if ('discountPercentage' in order) discountRate = toNumber(order.discountPercentage) / 100;
     else if ('discountRate' in order) discountRate = toNumber(order.discountRate);
 
-    let subtotal = 0;
-    let vatAmount = 0;
+    let currentSubtotal = 0;   // Current subtotal (after returns)
+    let currentVatAmount = 0;  // Current VAT (after returns)
+    let originalSubtotal = 0;  // Original subtotal (before returns)
+    let originalVatAmount = 0; // Original VAT (before returns)
+    let returnedValue = 0;     // Total value of returned items (incl VAT)
     let anyReturned = false;
     let allReturned = true;
 
@@ -108,50 +137,76 @@ const PastOrders = () => {
 
       const remainingQty = Math.max(0, originalQty - returnedQty);
 
+      // DEBUG: Log item quantities
+      if (returnedQty > 0) {
+        console.log(`📦 Item: ${item.name}`);
+        console.log(`   item.quantity: ${item.quantity}`);
+        console.log(`   item.original_quantity: ${item.original_quantity}`);
+        console.log(`   item.returnedQuantity: ${item.returnedQuantity}`);
+        console.log(`   Calculated originalQty: ${originalQty}`);
+        console.log(`   Calculated returnedQty: ${returnedQty}`);
+        console.log(`   Calculated remainingQty: ${remainingQty}`);
+      }
+
       if (returnedQty > 0) anyReturned = true;
       if (remainingQty > 0) allReturned = false;
-
-      if (remainingQty <= 0) return; // skip fully returned items
 
       // Determine per-unit machine price (price before VAT) and per-unit VAT
       let machinePricePerUnit = 0; // price excluding VAT
       let vatPerUnit = 0;
 
-      if ('machine_price_per_unit' in item) {
+      // CRITICAL: unitPrice field should ALWAYS be the price per unit including VAT
+      // This should never change regardless of returns
+      if ('unitPrice' in item) {
+        // unitPrice is the per-unit price including VAT
+        const unitPriceInclVAT = toNumber(item.unitPrice);
+        const vatPct = toNumber(item.vatPercentage) ? toNumber(item.vatPercentage) / 100 : vatRate;
+        
+        // Calculate machine price (excluding VAT)
+        machinePricePerUnit = unitPriceInclVAT / (1 + vatPct);
+        vatPerUnit = unitPriceInclVAT - machinePricePerUnit;
+        
+        console.log(`💡 Using unitPrice for ${item.name}:`);
+        console.log(`   unitPrice (incl VAT): ${unitPriceInclVAT}`);
+        console.log(`   VAT %: ${vatPct * 100}%`);
+        console.log(`   Machine price per unit: ${machinePricePerUnit.toFixed(2)}`);
+        console.log(`   VAT per unit: ${vatPerUnit.toFixed(2)}`);
+      } else if ('machine_price_per_unit' in item) {
         machinePricePerUnit = toNumber(item.machine_price_per_unit);
         vatPerUnit = toNumber(item.vat_per_unit ?? item.vatPerUnit ?? 0);
-      } else if ('subtotal' in item && originalQty > 0) {
-        // subtotal often contains machine price total for full qty
-        machinePricePerUnit = toNumber(item.subtotal) / originalQty;
-        vatPerUnit = toNumber(item.vatAmount ?? item.vat_amount ?? 0) / originalQty;
       } else if ('unit_price_incl_vat' in item) {
         const incl = toNumber(item.unit_price_incl_vat);
-        // If vat_per_unit provided use that, otherwise derive from vatRate
         if ('vat_per_unit' in item) {
           vatPerUnit = toNumber(item.vat_per_unit);
           machinePricePerUnit = incl - vatPerUnit;
         } else {
-          // derive base price using vatRate
           machinePricePerUnit = incl / (1 + vatRate);
           vatPerUnit = incl - machinePricePerUnit;
         }
-      } else if ('unitPrice' in item && ('vatPercentage' in item || vatRate)) {
-        // legacy: unitPrice is incl VAT
-        const incl = toNumber(item.unitPrice);
-        const pct = toNumber(item.vatPercentage) ? toNumber(item.vatPercentage) / 100 : vatRate;
-        machinePricePerUnit = incl / (1 + pct);
-        vatPerUnit = incl - machinePricePerUnit;
+      } else if ('subtotal' in item && originalQty > 0) {
+        // WARNING: subtotal might be wrong if it was recalculated after returns
+        // Use this as last resort
+        machinePricePerUnit = toNumber(item.subtotal) / originalQty;
+        vatPerUnit = toNumber(item.vatAmount ?? item.vat_amount ?? 0) / originalQty;
+        console.warn(`⚠️ Using subtotal/originalQty calculation for ${item.name} - may be inaccurate`);
       } else {
-        // Fallback: try unitPrice as base
-        machinePricePerUnit = toNumber(item.unitPrice ?? item.price ?? 0);
+        // Fallback
+        machinePricePerUnit = toNumber(item.price ?? 0);
         vatPerUnit = 0;
       }
 
-      const itemMachineTotal = machinePricePerUnit * remainingQty;
-      const itemVatTotal = vatPerUnit * remainingQty;
+      const unitPriceInclVAT = machinePricePerUnit + vatPerUnit;
 
-      subtotal += itemMachineTotal;
-      vatAmount += itemVatTotal;
+      // Calculate ORIGINAL totals (before any returns)
+      originalSubtotal += machinePricePerUnit * originalQty;
+      originalVatAmount += vatPerUnit * originalQty;
+
+      // Calculate CURRENT totals (after returns)
+      currentSubtotal += machinePricePerUnit * remainingQty;
+      currentVatAmount += vatPerUnit * remainingQty;
+
+      // Calculate RETURNED value (unit price incl VAT × returned quantity)
+      returnedValue += unitPriceInclVAT * returnedQty;
     });
 
     // Extras: fallback to order.extrasTotal or sum of extras
@@ -160,37 +215,63 @@ const PastOrders = () => {
       extrasTotal = order.extras.reduce((s, ex) => s + toNumber(ex.amount ?? ex.price ?? 0), 0);
     }
 
-    // Calculate totals according to steps
-    // Round to integer amounts (currency in LKR)
-    subtotal = Math.round(subtotal);
-    vatAmount = Math.round(vatAmount);
+    // Round values
+    currentSubtotal = Math.round(currentSubtotal);
+    currentVatAmount = Math.round(currentVatAmount);
+    originalSubtotal = Math.round(originalSubtotal);
+    originalVatAmount = Math.round(originalVatAmount);
+    returnedValue = Math.round(returnedValue);
 
-    let totalBeforeDiscount = subtotal + vatAmount;
+    // STEP 1: Calculate original total before discount
+    const originalTotalBeforeDiscount = originalSubtotal + originalVatAmount;
 
-    // Handle zero case
-    if (subtotal === 0) {
+    // STEP 2: Calculate discount amount (ALWAYS from original total)
+    const discountAmount = Math.round(originalTotalBeforeDiscount * discountRate);
+
+    // STEP 3: Calculate final total BEFORE returns
+    const finalTotalBeforeReturn = originalTotalBeforeDiscount - discountAmount + extrasTotal;
+
+    // STEP 4: Calculate final total AFTER returns
+    // finalTotalAfterReturn = finalTotalBeforeReturn - returnedValue
+    let finalTotal = finalTotalBeforeReturn - returnedValue;
+    finalTotal = Math.round(finalTotal);
+
+    // DEBUG: Log calculation for troubleshooting
+    if (anyReturned) {
+      console.log(`🔍 Return Calculation Debug:`);
+      console.log(`   Original Subtotal: ${originalSubtotal}`);
+      console.log(`   Original VAT: ${originalVatAmount}`);
+      console.log(`   Original Total Before Discount: ${originalTotalBeforeDiscount}`);
+      console.log(`   Discount Rate: ${discountRate * 100}%`);
+      console.log(`   Discount Amount (from ORIGINAL): ${discountAmount}`);
+      console.log(`   Final Before Return: ${finalTotalBeforeReturn}`);
+      console.log(`   Returned Value: ${returnedValue}`);
+      console.log(`   Final After Return: ${finalTotal}`);
+      console.log(`   Current Subtotal (display): ${currentSubtotal}`);
+      console.log(`   Current VAT (display): ${currentVatAmount}`);
+    }
+
+    // Handle all items returned case
+    if (allReturned || finalTotal < 0) {
       return {
         subtotal: 0,
         vatAmount: 0,
         totalBeforeDiscount: 0,
         discountAmount: 0,
         finalTotal: 0,
-        extrasTotal,
+        extrasTotal: 0,
         hasReturns: anyReturned,
-        allReturned
+        allReturned: true
       };
     }
 
-    const discountAmount = Math.round(totalBeforeDiscount * (discountRate || 0));
-
-    // Previous behaviour in UI added extras after discount, preserve that
-    let finalTotal = totalBeforeDiscount - discountAmount + extrasTotal;
-    finalTotal = Math.round(finalTotal);
+    // For display purposes, show current values
+    const currentTotalBeforeDiscount = currentSubtotal + currentVatAmount;
 
     return {
-      subtotal,
-      vatAmount,
-      totalBeforeDiscount,
+      subtotal: currentSubtotal,
+      vatAmount: currentVatAmount,
+      totalBeforeDiscount: currentTotalBeforeDiscount,
       discountAmount,
       finalTotal,
       extrasTotal,
@@ -421,8 +502,10 @@ const PastOrders = () => {
       if (response.data.success) {
         const orderTotals = response.data.data.orderTotals || {};
         const refundInfo = response.data.data.returnedItem || {};
+        const paymentInfo = response.data.data.paymentInfo || {};
         
-        alert(
+        // Build alert message
+        let alertMessage = 
           `✅ Item returned successfully!\n\n` +
           `Item: ${itemName}\n` +
           `Returned Quantity: ${returnQuantity}\n` +
@@ -430,8 +513,25 @@ const PastOrders = () => {
           `💰 Order Total Updated:\n` +
           `Old Total: LKR ${orderTotals.oldFinalTotal || 'N/A'}\n` +
           `New Total: LKR ${orderTotals.newFinalTotal || 'N/A'}\n` +
-          `Refund Amount: LKR ${refundInfo.refundAmount || 'N/A'}`
-        );
+          `Refund Amount: LKR ${refundInfo.refundAmount || 'N/A'}`;
+        
+        // Add payment information if order has payments
+        if (paymentInfo && paymentInfo.paidAmount && parseFloat(paymentInfo.paidAmount) > 0) {
+          alertMessage += `\n\n💳 Payment Information:\n` +
+            `Paid Amount: LKR ${paymentInfo.paidAmount}\n`;
+          
+          // Check if refund is needed (negative balance)
+          const refundNeeded = parseFloat(paymentInfo.refundNeeded || 0);
+          if (refundNeeded > 0) {
+            alertMessage += `⚠️ REFUND NEEDED: LKR ${paymentInfo.refundNeeded}\n` +
+              `Customer has overpaid. Please refund LKR ${paymentInfo.refundNeeded}`;
+          } else {
+            alertMessage += `Remaining Balance: LKR ${paymentInfo.remainingAmount}\n` +
+              `Payment Status: ${paymentInfo.paymentStatus}`;
+          }
+        }
+        
+        alert(alertMessage);
         
         // Update selected order FIRST if it's the one being viewed
         if (selectedOrder && selectedOrder._id === orderId) {
@@ -835,8 +935,19 @@ const PastOrders = () => {
                               <span>Paid:</span>
                               <span className="font-semibold">{formatCurrency(order.paidAmount ?? order.paid_amount ?? 0)}</span>
                               <span className="text-slate-400">|</span>
-                              <span>Remaining:</span>
-                              <span className="font-semibold text-orange-600">{formatCurrency(order.remainingAmount ?? order.remaining_amount ?? Math.max(0, (order.finalTotal || order.total || calculateOrderTotals(order).finalTotal) - (order.paidAmount || order.paid_amount || 0)))}</span>
+                              {(() => {
+                                const paymentStatus = getPaymentStatus(order);
+                                return (
+                                  <>
+                                    <span className={paymentStatus.isRefundNeeded ? 'text-red-600 font-semibold' : ''}>
+                                      {paymentStatus.label}:
+                                    </span>
+                                    <span className={`font-semibold ${paymentStatus.colorClass}`}>
+                                      {formatCurrency(paymentStatus.displayAmount)}
+                                    </span>
+                                  </>
+                                );
+                              })()}
                             </div>
                             {/* Show due date and remaining days for partial payments */}
                             {(order.paymentStatus === 'Partial' || order.paymentStatus === 'partial' || order.paymentStatus === 'Pending' || order.paymentStatus === 'pending') && order.dueDate && (() => {
@@ -1528,8 +1639,19 @@ const PastOrders = () => {
                       <p className="font-semibold text-green-600">{formatCurrency(selectedOrder.paidAmount || 0)}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-slate-500">Remaining Amount</p>
-                      <p className="font-semibold text-orange-600">{formatCurrency(selectedOrder.remainingAmount || 0)}</p>
+                      {(() => {
+                        const paymentStatus = getPaymentStatus(selectedOrder);
+                        return (
+                          <>
+                            <p className="text-sm text-slate-500">
+                              {paymentStatus.isRefundNeeded ? "Refund Needed" : "Remaining Amount"}
+                            </p>
+                            <p className={`font-semibold ${paymentStatus.colorClass}`}>
+                              {formatCurrency(paymentStatus.displayAmount)}
+                            </p>
+                          </>
+                        );
+                      })()}
                     </div>
                     {selectedOrder.dueDate && (
                       <>
