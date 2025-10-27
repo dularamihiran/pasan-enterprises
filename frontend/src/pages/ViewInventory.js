@@ -67,10 +67,13 @@ const ViewInventory = () => {
       // Add status filter if not 'all'
       if (filterStatus !== 'all') {
         params.status = filterStatus;
+        console.log('Adding status filter:', filterStatus); // Debug log
       }
       
       const response = await machineService.getAllMachines(params);
+      console.log('API Request params:', params); // Debug log
       console.log('API Response:', response); // Debug log
+      console.log('Current filterStatus:', filterStatus); // Debug log
       
       if (response?.success) {
         // Backend returns paginated response
@@ -129,7 +132,26 @@ const ViewInventory = () => {
   };
 
   // Server-side pagination means we display what we receive
-  const displayedMachines = Array.isArray(machines) ? machines : [];
+  let displayedMachines = Array.isArray(machines) ? machines : [];
+  
+  // Temporary client-side filtering as fallback (remove this after debugging)
+  if (filterStatus !== 'all' && displayedMachines.length > 0) {
+    console.log('Applying client-side status filter as fallback:', filterStatus);
+    displayedMachines = displayedMachines.filter(machine => {
+      const status = getStatus(machine.quantity);
+      switch (filterStatus) {
+        case 'in-stock':
+          return status === 'In Stock';
+        case 'low-stock':
+          return status === 'Low Stock';
+        case 'out-of-stock':
+          return status === 'Out of Stock';
+        default:
+          return true;
+      }
+    });
+    console.log('Filtered machines count:', displayedMachines.length);
+  }
   
   // Pagination calculations for display
   const startIndex = (currentPage - 1) * itemsPerPage;
