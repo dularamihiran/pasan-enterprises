@@ -26,14 +26,78 @@ const Dashboard = () => {
   const [error, setError] = useState(null);
   const [partialErrors, setPartialErrors] = useState([]);
 
-  // Restore authentication state from localStorage
+  // Check main authentication and restore dashboard auth state
   useEffect(() => {
-    const authStatus = localStorage.getItem('dashboardAuth');
-    if (authStatus === 'true') {
+    // First, check if user is logged in to the main system
+    const isMainUserLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
+    const mainAuthToken = sessionStorage.getItem('authToken');
+    
+    // If main user is not logged in, clear dashboard auth and don't restore it
+    if (!isMainUserLoggedIn || !mainAuthToken) {
+      localStorage.removeItem('dashboardAuth');
+      setIsAuthenticated(false);
+      setLoading(false);
+      return;
+    }
+    
+    // If main user is logged in, check dashboard auth
+    const dashboardAuthStatus = localStorage.getItem('dashboardAuth');
+    if (dashboardAuthStatus === 'true') {
       setIsAuthenticated(true);
     } else {
       setLoading(false);
     }
+  }, []);
+
+  // Listen for main user logout and auto-lock dashboard
+  useEffect(() => {
+    const checkMainAuthStatus = () => {
+      const isMainUserLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
+      const mainAuthToken = sessionStorage.getItem('authToken');
+      
+      // If main user logged out, immediately lock dashboard
+      if (!isMainUserLoggedIn || !mainAuthToken) {
+        localStorage.removeItem('dashboardAuth');
+        if (isAuthenticated) {
+          setIsAuthenticated(false);
+          setPassword('');
+          setPasswordError('');
+          setLoading(false);
+          console.log('🔒 Dashboard auto-locked due to main user logout');
+        }
+      }
+    };
+
+    // Check every 2 seconds for main auth status changes
+    const authCheckInterval = setInterval(checkMainAuthStatus, 2000);
+
+    // Also listen for storage events (for logout in other tabs)
+    const handleStorageChange = (e) => {
+      if (e.key === 'isLoggedIn' || e.key === 'authToken') {
+        checkMainAuthStatus();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    // Cleanup
+    return () => {
+      clearInterval(authCheckInterval);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [isAuthenticated]);
+
+  // Cleanup dashboard auth on component unmount
+  useEffect(() => {
+    return () => {
+      // Only clear if main user is not logged in when component unmounts
+      const isMainUserLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
+      const mainAuthToken = sessionStorage.getItem('authToken');
+      
+      if (!isMainUserLoggedIn || !mainAuthToken) {
+        localStorage.removeItem('dashboardAuth');
+      }
+    };
   }, []);
 
   const handlePasswordSubmit = (e) => {
@@ -59,6 +123,7 @@ const Dashboard = () => {
     setPassword('');
     setPasswordError('');
     setLoading(false);
+    console.log('🔒 Dashboard locked manually');
   };
 
   // Fetch all dashboard data (only when authenticated)
