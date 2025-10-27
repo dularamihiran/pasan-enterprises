@@ -37,7 +37,7 @@ const ViewInventory = () => {
     quantity: ''
   });
 
-  const categories = ['all', 'Pumps', 'Motors', 'Pipes', 'Bearings', 'Valves', 'Filters', 'Seals', 'Tools', 'Electronics', 'Other'];
+  const categories = ['all', 'Packing Machine', 'Filling Machine', 'Sealing Machine', 'Capping Machine', 'Date Coding Machine', 'Dehydrator Machine', 'Optional Line Equipment', 'Mixing Machine', 'Labelling Machine', 'Grinding Machine', 'Food machine', 'Other'];
   const statusOptions = ['all', 'in-stock', 'low-stock', 'out-of-stock'];
 
   // Fetch machines from database with pagination

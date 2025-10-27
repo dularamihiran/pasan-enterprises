@@ -9,7 +9,7 @@ const getAllMachines = async (req, res) => {
     const limit = parseInt(req.query.limit) || 50;
     const category = req.query.category;
     const search = req.query.search;
-    const inStock = req.query.inStock;
+    const status = req.query.status;
 
     // Build query
     let query = {};
@@ -26,8 +26,19 @@ const getAllMachines = async (req, res) => {
       ];
     }
     
-    if (inStock === 'true') {
-      query.quantity = { $gt: 0 };
+    // Handle status filter
+    if (status && status !== 'all') {
+      switch (status) {
+        case 'in-stock':
+          query.quantity = { $gt: 2 }; // Greater than 2 for in-stock
+          break;
+        case 'low-stock':
+          query.quantity = { $gte: 1, $lte: 2 }; // Between 1 and 2 for low-stock
+          break;
+        case 'out-of-stock':
+          query.quantity = 0; // Exactly 0 for out-of-stock
+          break;
+      }
     }
 
     // Calculate skip for pagination

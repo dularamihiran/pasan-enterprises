@@ -22,15 +22,17 @@ const AddInventory = () => {
   const [message, setMessage] = useState({ type: '', text: '' });
 
   const categories = [
-    'Pumps',
-    'Motors',
-    'Pipes',
-    'Bearings',
-    'Valves',
-    'Filters',
-    'Seals',
-    'Tools',
-    'Electronics',
+    'Packing Machine',
+    'Filling Machine',
+    'Sealing Machine',
+    'Capping Machine',
+    'Date Coding Machine',
+    'Dehydrator Machine',
+    'Optional Line Equipment',
+    'Mixing Machine',
+    'Labelling Machine',
+    'Grinding Machine',
+    'Food machine',
     'Other'
   ];
 
