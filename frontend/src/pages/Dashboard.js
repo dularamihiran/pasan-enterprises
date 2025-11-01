@@ -21,105 +21,8 @@ const Dashboard = () => {
   const [error, setError] = useState(null);
   const [partialErrors, setPartialErrors] = useState([]);
 
-  // Dashboard lock/authentication
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [password, setPassword] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-
-  // Check main authentication and restore dashboard auth state
+  // Fetch all dashboard data
   useEffect(() => {
-    const isMainUserLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
-    const mainAuthToken = sessionStorage.getItem('authToken');
-    
-    if (!isMainUserLoggedIn || !mainAuthToken) {
-      localStorage.removeItem('dashboardAuth');
-      setIsAuthenticated(false);
-      setLoading(false);
-      return;
-    }
-
-    const dashboardAuthStatus = localStorage.getItem('dashboardAuth');
-    if (dashboardAuthStatus === 'true') {
-      setIsAuthenticated(true);
-    } else {
-      setLoading(false);
-    }
-  }, []);
-
-  // Listen for main user logout and auto-lock dashboard
-  useEffect(() => {
-    const checkMainAuthStatus = () => {
-      const isMainUserLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
-      const mainAuthToken = sessionStorage.getItem('authToken');
-
-      if (!isMainUserLoggedIn || !mainAuthToken) {
-        localStorage.removeItem('dashboardAuth');
-        if (isAuthenticated) {
-          setIsAuthenticated(false);
-          setPassword('');
-          setPasswordError('');
-          setLoading(false);
-          console.log('🔒 Dashboard auto-locked due to main user logout');
-        }
-      }
-    };
-
-    const authCheckInterval = setInterval(checkMainAuthStatus, 2000);
-    const handleStorageChange = (e) => {
-      if (e.key === 'isLoggedIn' || e.key === 'authToken') {
-        checkMainAuthStatus();
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-
-    return () => {
-      clearInterval(authCheckInterval);
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, [isAuthenticated]);
-
-  // Cleanup dashboard auth on unmount
-  useEffect(() => {
-    return () => {
-      const isMainUserLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
-      const mainAuthToken = sessionStorage.getItem('authToken');
-      if (!isMainUserLoggedIn || !mainAuthToken) {
-        localStorage.removeItem('dashboardAuth');
-      }
-    };
-  }, []);
-
-  const handlePasswordSubmit = (e) => {
-    e.preventDefault();
-    const CORRECT_PASSWORD = '0000';
-
-    if (password === CORRECT_PASSWORD) {
-      setIsAuthenticated(true);
-      setPassword('');
-      setPasswordError('');
-      localStorage.setItem('dashboardAuth', 'true');
-      console.log('✅ Dashboard authentication successful');
-    } else {
-      setPasswordError('Incorrect password. Please try again.');
-      setPassword('');
-      console.log('❌ Dashboard authentication failed');
-    }
-  };
-
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    localStorage.removeItem('dashboardAuth');
-    setPassword('');
-    setPasswordError('');
-    setLoading(false);
-    console.log('🔒 Dashboard locked manually');
-  };
-
-  // Fetch all dashboard data (only when authenticated)
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
@@ -162,7 +65,7 @@ const Dashboard = () => {
     };
 
     fetchDashboardData();
-  }, [isAuthenticated]);
+  }, []);
 
   const formatCurrencyNoCents = (amount) => {
     if (!amount && amount !== 0) return 'LKR 0';
@@ -179,35 +82,6 @@ const Dashboard = () => {
             <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
             <p className="text-slate-600">Loading dashboard...</p>
           </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Dashboard locked (auth required)
-  if (!isAuthenticated) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-        <div className="bg-white shadow-lg rounded-2xl p-8 max-w-sm w-full text-center">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">🔒 Dashboard Locked</h2>
-          <form onSubmit={handlePasswordSubmit}>
-            <input
-              type="password"
-              placeholder="Enter dashboard password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring focus:ring-blue-200 mb-2"
-            />
-            {passwordError && (
-              <p className="text-red-500 text-sm mb-2">{passwordError}</p>
-            )}
-            <button
-              type="submit"
-              className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
-            >
-              Unlock
-            </button>
-          </form>
         </div>
       </div>
     );
@@ -238,12 +112,6 @@ const Dashboard = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
       {/* Place your UI code here (cards, charts, etc.) */}
       <h1 className="text-2xl font-bold">Dashboard Content</h1>
-      <button 
-        onClick={handleLogout}
-        className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-      >
-        Lock Dashboard
-      </button>
     </div>
   );
 };
