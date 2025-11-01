@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { 
   EyeIcon, 
   ShoppingCartIcon, 
@@ -9,47 +9,66 @@ import {
   ChevronRightIcon,
   ChartBarIcon
 } from '@heroicons/react/24/outline';
+import authService from '../services/authService';
 
 const Sidebar = ({ isCollapsed, setIsCollapsed, activeTab, setActiveTab }) => {
+  // Get current user to check role-based access
+  const currentUser = authService.getCurrentUser();
+  
+  // Define which roles can access dashboard (ONLY admin - no manager or employee)
+  const canAccessDashboard = currentUser && currentUser.role === 'admin';
 
-  const menuItems = [
-    {
-      id: 'dashboard',
-      name: 'Dashboard',
-      icon: ChartBarIcon,
-      gradient: 'from-blue-500 to-blue-600',
-    },
-    {
-      id: 'view-inventory',
-      name: 'View Inventory',
-      icon: EyeIcon,
-      gradient: 'from-green-500 to-green-600',
-    },
-    {
-      id: 'sell-item',
-      name: 'Sell Item',
-      icon: ShoppingCartIcon,
-      gradient: 'from-purple-500 to-purple-600',
-    },
-    {
-      id: 'past-orders',
-      name: 'Past Orders',
-      icon: ClockIcon,
-      gradient: 'from-orange-500 to-orange-600',
-    },
-    {
-      id: 'add-inventory',
-      name: 'Add Inventory',
-      icon: PlusIcon,
-      gradient: 'from-teal-500 to-teal-600',
-    },
-    {
-      id: 'customers',
-      name: 'Customers',
-      icon: UsersIcon,
-      gradient: 'from-pink-500 to-pink-600',
-    },
-  ];
+  // Memoize menu items to prevent recreation on every render
+  // Dashboard is conditionally included based on user role
+  const menuItems = useMemo(() => {
+    const items = [];
+    
+    // Only show dashboard for admin and manager roles
+    if (canAccessDashboard) {
+      items.push({
+        id: 'dashboard',
+        name: 'Dashboard',
+        icon: ChartBarIcon,
+        gradient: 'from-blue-500 to-blue-600',
+      });
+    }
+    
+    // All other items are available to all authenticated users
+    items.push(
+      {
+        id: 'view-inventory',
+        name: 'View Inventory',
+        icon: EyeIcon,
+        gradient: 'from-green-500 to-green-600',
+      },
+      {
+        id: 'sell-item',
+        name: 'Sell Item',
+        icon: ShoppingCartIcon,
+        gradient: 'from-purple-500 to-purple-600',
+      },
+      {
+        id: 'past-orders',
+        name: 'Past Orders',
+        icon: ClockIcon,
+        gradient: 'from-orange-500 to-orange-600',
+      },
+      {
+        id: 'add-inventory',
+        name: 'Add Inventory',
+        icon: PlusIcon,
+        gradient: 'from-teal-500 to-teal-600',
+      },
+      {
+        id: 'customers',
+        name: 'Customers',
+        icon: UsersIcon,
+        gradient: 'from-pink-500 to-pink-600',
+      }
+    );
+    
+    return items;
+  }, [canAccessDashboard]);
 
   return (
     <div className={`bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 text-white transition-all duration-300 flex flex-col h-screen shadow-2xl border-r border-slate-700/50 ${
@@ -63,6 +82,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, activeTab, setActiveTab }) => {
               src="/images/logo2.png" 
               alt="Pasan Enterprises Logo" 
               className="w-12 h-12 object-contain"
+              loading="lazy"
             />
             {!isCollapsed && (
               <div className="transition-opacity duration-300">
@@ -167,4 +187,5 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, activeTab, setActiveTab }) => {
   );
 };
 
-export default Sidebar;
+// Memoize component to prevent unnecessary re-renders when parent re-renders
+export default React.memo(Sidebar);

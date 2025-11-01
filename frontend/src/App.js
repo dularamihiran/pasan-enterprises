@@ -1,13 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy } from 'react';
 import Sidebar from './components/Sidebar';
-import Dashboard from './pages/Dashboard';
-import ViewInventory from './pages/ViewInventory';
-import SellItem from './pages/SellItem';
-import PastOrders from './pages/PastOrders';
-import AddInventory from './pages/AddInventory';
-import Customers from './pages/Customers';
-import Login from './pages/auth/Login';
+import ProtectedRoute from './components/ProtectedRoute';
 import { userAPI } from './services/apiService';
+
+// Code splitting: Lazy load pages to reduce initial bundle size
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const ViewInventory = lazy(() => import('./pages/ViewInventory'));
+const SellItem = lazy(() => import('./pages/SellItem'));
+const PastOrders = lazy(() => import('./pages/PastOrders'));
+const AddInventory = lazy(() => import('./pages/AddInventory'));
+const Customers = lazy(() => import('./pages/Customers'));
+const Login = lazy(() => import('./pages/auth/Login'));
 
 function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -27,7 +30,14 @@ function App() {
         try {
           // First, use stored user data if available
           if (storedUser) {
-            setCurrentUser(JSON.parse(storedUser));
+            const user = JSON.parse(storedUser);
+            setCurrentUser(user);
+            
+            // Set default tab based on user role
+            // Only admin users can access dashboard, others start on view-inventory
+            if (user.role !== 'admin') {
+              setActiveTab('view-inventory');
+            }
           }
           
           setIsAuthenticated(true);
@@ -36,7 +46,13 @@ function App() {
           try {
             const response = await userAPI.getCurrentUser();
             if (response.data.success) {
-              setCurrentUser(response.data.data);
+              const freshUser = response.data.data;
+              setCurrentUser(freshUser);
+              
+              // Update default tab if role changed
+              if (freshUser.role !== 'admin') {
+                setActiveTab('view-inventory');
+              }
             }
           } catch (apiError) {
             console.warn('Could not fetch fresh user data on startup:', apiError);
@@ -60,22 +76,51 @@ function App() {
   }, []);
 
   const renderPage = () => {
-    switch (activeTab) {
-      case 'dashboard':
-        return <Dashboard />;
-      case 'view-inventory':
-        return <ViewInventory />;
-      case 'sell-item':
-        return <SellItem />;
-      case 'past-orders':
-        return <PastOrders />;
-      case 'add-inventory':
-        return <AddInventory />;
-      case 'customers':
-        return <Customers />;
-      default:
-        return <Dashboard />;
-    }
+    // Suspense wrapper for lazy-loaded components with loading fallback
+    const LoadingFallback = (
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-700"></div>
+      </div>
+    );
+
+    const PageContent = () => {
+      switch (activeTab) {
+        case 'dashboard':
+          // Protected: Only admin can access dashboard
+          return (
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Dashboard />
+            </ProtectedRoute>
+          );
+        case 'view-inventory':
+          return <ViewInventory />;
+        case 'sell-item':
+          return <SellItem />;
+        case 'past-orders':
+          return <PastOrders />;
+        case 'add-inventory':
+          return <AddInventory />;
+        case 'customers':
+          return <Customers />;
+        default:
+          // If user tries to access dashboard by default but isn't authorized,
+          // redirect to view-inventory
+          if (currentUser && currentUser.role !== 'admin') {
+            return <ViewInventory />;
+          }
+          return (
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Dashboard />
+            </ProtectedRoute>
+          );
+      }
+    };
+
+    return (
+      <React.Suspense fallback={LoadingFallback}>
+        <PageContent />
+      </React.Suspense>
+    );
   };
 
   const handleLogout = () => {
@@ -89,7 +134,9 @@ function App() {
     localStorage.removeItem('userEmail'); // legacy cleanup
     setIsAuthenticated(false);
     setCurrentUser(null);
-    setActiveTab('dashboard');
+    // Reset to a safe default page (view-inventory) instead of dashboard
+    // This prevents unauthorized access attempts after logout
+    setActiveTab('view-inventory');
   };
 
   // Provide a function to be called by Login on success.
@@ -131,7 +178,13 @@ function App() {
   // If not authenticated, show Login centered on the screen
   if (!isAuthenticated) {
     return (
-      <Login onLogin={handleLoginSuccess} />
+      <React.Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+          <div className="text-xl text-slate-600">Loading...</div>
+        </div>
+      }>
+        <Login onLogin={handleLoginSuccess} />
+      </React.Suspense>
     );
   }
 
