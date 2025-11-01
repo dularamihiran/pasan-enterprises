@@ -22,15 +22,17 @@ const AddInventory = () => {
   const [message, setMessage] = useState({ type: '', text: '' });
 
   const categories = [
-    'Pumps',
-    'Motors',
-    'Pipes',
-    'Bearings',
-    'Valves',
-    'Filters',
-    'Seals',
-    'Tools',
-    'Electronics',
+    'Packing Machine',
+    'Filling Machine',
+    'Sealing Machine',
+    'Capping Machine',
+    'Date Coding Machine',
+    'Dehydrator Machine',
+    'Optional Line Equipment',
+    'Mixing Machine',
+    'Labelling Machine',
+    'Grinding Machine',
+    'Food machine',
     'Other'
   ];
 
@@ -167,7 +169,7 @@ const AddInventory = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Item ID *
+                  Item ID
                 </label>
                 <div className="flex space-x-2">
                   <input
@@ -191,7 +193,7 @@ const AddInventory = () => {
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Item Name *
+                  Item Name
                 </label>
                 <input
                   type="text"
@@ -206,7 +208,7 @@ const AddInventory = () => {
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Category *
+                  Category
                 </label>
                 <select
                   name="category"
@@ -226,7 +228,7 @@ const AddInventory = () => {
 
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Description *
+                  Description
                 </label>
                 <textarea
                   name="description"
@@ -251,7 +253,7 @@ const AddInventory = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Quantity *
+                  Quantity
                 </label>
                 <input
                   type="number"
@@ -267,7 +269,7 @@ const AddInventory = () => {
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Price (Rs) *
+                  Price (Rs)
                 </label>
                 <input
                   type="number"

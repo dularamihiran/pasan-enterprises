@@ -15,14 +15,35 @@ export const machineService = {
   // Get all machines
   getAllMachines: async (params = {}) => {
     try {
-      const queryString = new URLSearchParams(params).toString();
+      // Clean params and ensure proper encoding
+      const cleanParams = {};
+      Object.keys(params).forEach(key => {
+        if (params[key] && params[key] !== 'all') {
+          cleanParams[key] = params[key];
+        }
+      });
+      
+      const queryString = new URLSearchParams(cleanParams).toString();
       const url = queryString ? `${API_BASE_URL}/machines?${queryString}` : `${API_BASE_URL}/machines`;
-      const response = await fetch(url);
-      const data = await response.json();
+      console.log('Machine API URL:', url); // Debug log
+      console.log('Machine API params:', params); // Debug log
+      console.log('Clean params:', cleanParams); // Debug log
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
       
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to fetch machines');
+        console.error('HTTP Error:', response.status, response.statusText);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
+      
+      const data = await response.json();
+      console.log('API Response data:', data); // Debug log
       
       return data;
     } catch (error) {

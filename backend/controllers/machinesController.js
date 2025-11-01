@@ -9,7 +9,7 @@ const getAllMachines = async (req, res) => {
     const limit = parseInt(req.query.limit) || 50;
     const category = req.query.category;
     const search = req.query.search;
-    const inStock = req.query.inStock;
+    const status = req.query.status;
 
     // Build query
     let query = {};
@@ -26,12 +26,31 @@ const getAllMachines = async (req, res) => {
       ];
     }
     
-    if (inStock === 'true') {
-      query.quantity = { $gt: 0 };
+    // Handle status filter
+    if (status && status !== 'all') {
+      console.log('Status filter received:', status); // Debug log
+      switch (status) {
+        case 'in-stock':
+          query.quantity = { $gt: 2 }; // Greater than 2 for in-stock
+          console.log('Applied in-stock filter'); // Debug log
+          break;
+        case 'low-stock':
+          query.quantity = { $gte: 1, $lte: 2 }; // Between 1 and 2 for low-stock
+          console.log('Applied low-stock filter'); // Debug log
+          break;
+        case 'out-of-stock':
+          query.quantity = 0; // Exactly 0 for out-of-stock
+          console.log('Applied out-of-stock filter'); // Debug log
+          break;
+        default:
+          console.log('Unknown status filter:', status); // Debug log
+      }
     }
 
     // Calculate skip for pagination
     const skip = (page - 1) * limit;
+
+    console.log('Final MongoDB query:', JSON.stringify(query, null, 2)); // Debug log
 
     // Execute query with pagination
     const machines = await Machine.find(query)
