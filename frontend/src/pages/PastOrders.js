@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   ShoppingCartIcon,
   MagnifyingGlassIcon,
@@ -284,6 +284,7 @@ const PastOrders = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [paymentFilter, setPaymentFilter] = useState('all'); // 'all', 'processing', 'completed'
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -314,13 +315,12 @@ const PastOrders = () => {
       setLoading(true);
       setError('');
       
-      // If we have date filters or search, we need to get more data to filter properly
-      // Since backend might not support server-side date filtering yet
-      const hasFilters = searchTerm.trim() || fromDate || toDate;
+      // If we have ANY filters, get ALL data (up to 1000 orders) for client-side filtering
+      const hasFilters = searchTerm.trim() || fromDate || toDate || paymentFilter !== 'all';
       
       const params = {
-        page: hasFilters ? 1 : currentPage,
-        limit: hasFilters ? 1000 : ordersPerPage // Get more if filtering
+        page: 1, // Always get from page 1 when filtering
+        limit: hasFilters ? 1000 : ordersPerPage // Get ALL orders if filtering, otherwise paginate
       };
       
       // Add search parameter if search term exists and backend supports it
@@ -334,7 +334,7 @@ const PastOrders = () => {
       if (response.data.success) {
         let ordersData = response.data.data || [];
         
-        // Client-side filtering for dates if backend doesn't support it
+        // Client-side filtering for dates and payment status
         if (hasFilters) {
           ordersData = ordersData.filter(order => {
             const matchesSearch = !searchTerm.trim() || 
@@ -359,27 +359,59 @@ const PastOrders = () => {
               }
             }
             
-            return matchesSearch && matchesDateRange;
+            // Payment filter logic
+            let matchesPaymentFilter = true;
+            if (paymentFilter !== 'all') {
+              const paidAmount = Number(order.paidAmount ?? order.paid_amount ?? 0);
+              const finalTotal = order.finalTotal || order.total || 0;
+              const remainingAmount = finalTotal - paidAmount;
+              
+              // Check if all items are returned
+              const allItemsReturned = order.items && order.items.length > 0 && 
+                order.items.every(item => {
+                  const originalQty = Number(item.original_quantity ?? item.quantity ?? item.originalQuantity ?? 0);
+                  const returnedQty = Number(item.returned_quantity ?? item.returnedQuantity ?? 0);
+                  const isFullyReturned = item.returned === true || returnedQty >= originalQty;
+                  return isFullyReturned;
+                });
+              
+              if (paymentFilter === 'processing') {
+                // Processing: NOT fully paid AND items still active (not all returned)
+                // This includes: partial payment (paidAmount > 0 && remainingAmount > 0)
+                //           OR: pending payment (paidAmount = 0 && remainingAmount > 0)
+                matchesPaymentFilter = remainingAmount > 0 && !allItemsReturned;
+              } else if (paymentFilter === 'completed') {
+                // Completed: full payment OR all items returned (order is effectively closed)
+                matchesPaymentFilter = remainingAmount <= 0 || allItemsReturned;
+              }
+            }
+            
+            return matchesSearch && matchesDateRange && matchesPaymentFilter;
           });
           
-          // Apply pagination manually for filtered results
+          // Store total filtered count BEFORE pagination
           const totalFiltered = ordersData.length;
+          console.log(`Filter applied: ${paymentFilter}, Total matching orders: ${totalFiltered}`);
+          
+          // Apply pagination manually for filtered results
           const startIndex = (currentPage - 1) * ordersPerPage;
           const endIndex = startIndex + ordersPerPage;
-          ordersData = ordersData.slice(startIndex, endIndex);
+          const paginatedData = ordersData.slice(startIndex, endIndex);
           
+          console.log(`Showing ${paginatedData.length} orders (page ${currentPage}, showing ${startIndex + 1}-${Math.min(endIndex, totalFiltered)} of ${totalFiltered})`);
+          
+          setOrders(paginatedData);
           setTotalPages(Math.ceil(totalFiltered / ordersPerPage));
           setTotalOrders(totalFiltered);
         } else {
           // No filters, use server pagination
+          setOrders(Array.isArray(ordersData) ? ordersData : []);
           setTotalPages(response.data.pages || 1);
           setTotalOrders(response.data.total || 0);
         }
         
-        setOrders(Array.isArray(ordersData) ? ordersData : []);
-        
         // Set all-time orders count (for when no filters are applied)
-        if (!searchTerm.trim() && !fromDate && !toDate) {
+        if (!searchTerm.trim() && !fromDate && !toDate && paymentFilter === 'all') {
           setAllTimeOrdersCount(response.data.total || 0);
         }
       } else {
@@ -398,12 +430,12 @@ const PastOrders = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, searchTerm, fromDate, toDate]);
+  }, [currentPage, searchTerm, fromDate, toDate, paymentFilter]);
 
   // Run loadOrders when filters/pagination change
   React.useEffect(() => {
     loadOrders();
-  }, [currentPage, searchTerm, fromDate, toDate, loadOrders]);
+  }, [currentPage, searchTerm, fromDate, toDate, paymentFilter, loadOrders]);
 
   const loadOverallStats = React.useCallback(async () => {
     try {
@@ -790,7 +822,8 @@ const PastOrders = () => {
 
       {/* Search and Filters */}
       <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-6">
-        <div className="flex flex-col lg:flex-row lg:items-center space-y-4 lg:space-y-0 lg:space-x-4">
+        <div className="flex flex-col space-y-4">
+          {/* Search Bar */}
           <div className="relative flex-1">
             <MagnifyingGlassIcon className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
             <input
@@ -802,7 +835,26 @@ const PastOrders = () => {
             />
           </div>
           
-          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+          {/* Filters Row */}
+          <div className="flex flex-col lg:flex-row lg:items-center space-y-4 lg:space-y-0 lg:space-x-4">
+            {/* Payment Status Filter */}
+            <div className="flex items-center space-x-2">
+              <label className="text-sm text-slate-600 font-medium whitespace-nowrap">Payment Status:</label>
+              <select
+                value={paymentFilter}
+                onChange={(e) => {
+                  setPaymentFilter(e.target.value);
+                  setCurrentPage(1); // Reset to first page when filtering
+                }}
+                className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-slate-700 font-medium"
+              >
+                <option value="all">All Orders</option>
+                <option value="processing">Processing (Partial Payment)</option>
+                <option value="completed">Completed (Full Payment)</option>
+              </select>
+            </div>
+            
+            {/* Date Filters */}
             <div className="flex items-center space-x-2">
               <CalendarDaysIcon className="w-5 h-5 text-slate-400" />
               <label className="text-sm text-slate-600 whitespace-nowrap">From:</label>
@@ -825,19 +877,37 @@ const PastOrders = () => {
               />
             </div>
             
-            {(fromDate || toDate) && (
+            {/* Clear Filters Button */}
+            {(fromDate || toDate || paymentFilter !== 'all') && (
               <button
                 onClick={() => {
                   handleFromDateChange('');
                   handleToDateChange('');
+                  setPaymentFilter('all');
                 }}
-                className="px-3 py-2 text-sm text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm text-white bg-slate-600 hover:bg-slate-700 rounded-lg transition-colors font-medium"
               >
-                Clear Dates
+                Clear All Filters
               </button>
             )}
           </div>
         </div>
+        
+        {/* Active Filter Display */}
+        {paymentFilter !== 'all' && (
+          <div className="mt-4 pt-4 border-t border-slate-200">
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-slate-600">Showing:</span>
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                paymentFilter === 'processing' 
+                  ? 'bg-orange-100 text-orange-800' 
+                  : 'bg-green-100 text-green-800'
+              }`}>
+                {paymentFilter === 'processing' ? 'Processing Orders (Partial Payment)' : 'Completed Orders (Full Payment)'}
+              </span>
+            </div>
+          </div>
+        )}
         
         {error && (
           <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl">
@@ -966,11 +1036,24 @@ const PastOrders = () => {
                     
                     <div className="flex items-center space-x-4">
                       {(() => {
-                        // Determine actual status based on payment
+                        // Determine actual status based on payment and returns
                         let displayStatus = order.orderStatus;
                         
-                        // If orderStatus is 'Completed' but payment is not full, override to 'Processing'
-                        if (order.orderStatus === 'Completed' && 
+                        // Check if all items are returned
+                        const allItemsReturned = order.items && order.items.length > 0 && 
+                          order.items.every(item => {
+                            const originalQty = Number(item.original_quantity ?? item.quantity ?? item.originalQuantity ?? 0);
+                            const returnedQty = Number(item.returned_quantity ?? item.returnedQuantity ?? 0);
+                            const isFullyReturned = item.returned === true || returnedQty >= originalQty;
+                            return isFullyReturned;
+                          });
+                        
+                        // If all items returned, show as Completed regardless of payment status
+                        if (allItemsReturned) {
+                          displayStatus = 'Completed';
+                        }
+                        // If orderStatus is 'Completed' but payment is not full and items NOT all returned, override to 'Processing'
+                        else if (order.orderStatus === 'Completed' && 
                             (order.paymentStatus === 'partial' || order.paymentStatus === 'Partial' || 
                              order.paymentStatus === 'pending' || order.paymentStatus === 'Pending' ||
                              (order.remainingAmount && order.remainingAmount > 0))) {
@@ -1339,11 +1422,24 @@ const PastOrders = () => {
               <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
                 <div className="flex items-center space-x-3">
                   {(() => {
-                    // Determine actual status based on payment
+                    // Determine actual status based on payment and returns
                     let displayStatus = selectedOrder.orderStatus;
                     
-                    // If orderStatus is 'Completed' but payment is not full, override to 'Processing'
-                    if (selectedOrder.orderStatus === 'Completed' && 
+                    // Check if all items are returned
+                    const allItemsReturned = selectedOrder.items && selectedOrder.items.length > 0 && 
+                      selectedOrder.items.every(item => {
+                        const originalQty = Number(item.original_quantity ?? item.quantity ?? item.originalQuantity ?? 0);
+                        const returnedQty = Number(item.returned_quantity ?? item.returnedQuantity ?? 0);
+                        const isFullyReturned = item.returned === true || returnedQty >= originalQty;
+                        return isFullyReturned;
+                      });
+                    
+                    // If all items returned, show as Completed regardless of payment status
+                    if (allItemsReturned) {
+                      displayStatus = 'Completed';
+                    }
+                    // If orderStatus is 'Completed' but payment is not full and items NOT all returned, override to 'Processing'
+                    else if (selectedOrder.orderStatus === 'Completed' && 
                         (selectedOrder.paymentStatus === 'partial' || selectedOrder.paymentStatus === 'Partial' || 
                          selectedOrder.paymentStatus === 'pending' || selectedOrder.paymentStatus === 'Pending' ||
                          (selectedOrder.remainingAmount && selectedOrder.remainingAmount > 0))) {

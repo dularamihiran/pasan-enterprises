@@ -10,11 +10,6 @@ import {
 } from '@heroicons/react/24/outline';
 
 const Dashboard = () => {
-  // Authentication state
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [password, setPassword] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-
   // Dashboard data state
   const [monthlyRevenue, setMonthlyRevenue] = useState(null);
   const [totalOrders, setTotalOrders] = useState(null);
@@ -26,48 +21,8 @@ const Dashboard = () => {
   const [error, setError] = useState(null);
   const [partialErrors, setPartialErrors] = useState([]);
 
-  // Restore authentication state from localStorage
+  // Fetch all dashboard data
   useEffect(() => {
-    const authStatus = localStorage.getItem('dashboardAuth');
-    if (authStatus === 'true') {
-      setIsAuthenticated(true);
-    } else {
-      setLoading(false);
-    }
-  }, []);
-
-  const handlePasswordSubmit = (e) => {
-    e.preventDefault();
-    const CORRECT_PASSWORD = '0000';
-
-    if (password === CORRECT_PASSWORD) {
-      setIsAuthenticated(true);
-      setPassword('');
-      setPasswordError('');
-      localStorage.setItem('dashboardAuth', 'true');
-      console.log('✅ Dashboard authentication successful');
-    } else {
-      setPasswordError('Incorrect password. Please try again.');
-      setPassword('');
-      console.log('❌ Dashboard authentication failed');
-    }
-  };
-
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    localStorage.removeItem('dashboardAuth');
-    setPassword('');
-    setPasswordError('');
-    setLoading(false);
-  };
-
-  // Fetch all dashboard data (only when authenticated)
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setLoading(false);
-      return;
-    }
-
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
@@ -190,7 +145,7 @@ const Dashboard = () => {
     };
 
     fetchDashboardData();
-  }, [isAuthenticated]);
+  }, []);
 
   // Format currency as "LKR 123,456.78"
   const formatCurrency = (amount) => {
@@ -208,83 +163,6 @@ const Dashboard = () => {
     if (typeof amount !== 'number') return 'LKR 0';
     return `LKR ${Math.round(amount).toLocaleString('en-US')}`;
   };
-
-  // Password protection screen
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-8">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
-          <div className="flex justify-center mb-6">
-            <div className="p-4 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-8 w-8 text-white"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                />
-              </svg>
-            </div>
-          </div>
-
-          <h2 className="text-2xl font-bold text-slate-800 text-center mb-2">Dashboard Access</h2>
-          <p className="text-slate-600 text-center mb-6">Please enter the password to continue</p>
-
-          <form onSubmit={handlePasswordSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-2">
-                Password
-              </label>
-              <input
-                type="password"
-                id="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter password"
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                autoFocus
-              />
-            </div>
-
-            {passwordError && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-start">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <span className="text-sm">{passwordError}</span>
-              </div>
-            )}
-
-            <button
-              type="submit"
-              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold py-3 px-4 rounded-lg hover:from-blue-600 hover:to-blue-700 focus:ring-4 focus:ring-blue-300 transition-all shadow-md hover:shadow-lg"
-            >
-              Access Dashboard
-            </button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <p className="text-xs text-slate-500">🔒 This dashboard is password protected</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Loading state
   if (loading) {
@@ -328,14 +206,6 @@ const Dashboard = () => {
               <CalendarIcon className="w-4 h-4" />
               {new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' })}
             </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg shadow-md transition-colors"
-            >
-              Lock
-            </button>
           </div>
         </div>
       </div>
