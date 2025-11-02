@@ -706,8 +706,8 @@ const SellItem = () => {
                           <div className="flex items-center justify-between">
                             <span className="text-base font-bold text-slate-800">Rs. {machine.price.toFixed(2)}</span>
                             <span className={`text-xs px-2 py-1 rounded-full ${
-                              machine.quantity > 10 ? 'bg-green-100 text-green-600' :
-                              machine.quantity > 5 ? 'bg-yellow-100 text-yellow-600' :
+                              machine.quantity >= 15 ? 'bg-green-100 text-green-600' :
+                              machine.quantity >= 3 ? 'bg-yellow-100 text-yellow-600' :
                               'bg-red-100 text-red-600'
                             }`}>
                               Stock: {machine.quantity}
