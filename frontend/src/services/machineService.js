@@ -89,6 +89,9 @@ export const machineService = {
   // Create new machine
   createMachine: async (machineData) => {
     try {
+      console.log('📤 Creating machine with data:', machineData);
+      console.log('📍 API URL:', `${API_BASE_URL}/machines`);
+      
       const response = await fetch(`${API_BASE_URL}/machines`, {
         method: 'POST',
         headers: {
@@ -98,9 +101,16 @@ export const machineService = {
       });
       
       const data = await response.json();
+      console.log('📥 Response status:', response.status);
+      console.log('📥 Response data:', data);
       
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to create machine');
+        // Extract detailed error message
+        const errorMessage = data.errors 
+          ? Object.values(data.errors).map(err => err.message).join(', ')
+          : data.message || 'Failed to create machine';
+        console.error('❌ Error details:', data);
+        throw new Error(errorMessage);
       }
       
       return data;

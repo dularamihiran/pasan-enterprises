@@ -92,6 +92,10 @@ const AddInventory = () => {
         price: parseFloat(formData.price)
       };
 
+      console.log('🔍 Machine data being sent:', machineData);
+      console.log('🔍 Category value:', machineData.category);
+      console.log('🔍 Category type:', typeof machineData.category);
+
       // Call API to create machine
       const response = await machineService.createMachine(machineData);
 
