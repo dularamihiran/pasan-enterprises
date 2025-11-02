@@ -15,20 +15,24 @@ const machineSchema = new mongoose.Schema({
   category: {
     type: String,
     required: [true, 'Category is required'],
-    enum: [
-      'Packing Machine',
-      'Filling Machine',
-      'Sealing Machine',
-      'Capping Machine',
-      'Date Coding Machine',
-      'Dehydrator Machine',
-      'Optional Line Equipment',
-      'Mixing Machine',
-      'Labelling Machine',
-      'Grinding Machine',
-      'Food machine',
-      'Other'
-    ]
+    trim: true,
+    enum: {
+      values: [
+        'Packing Machine',
+        'Filling Machine',
+        'Sealing Machine',
+        'Capping Machine',
+        'Date Coding Machine',
+        'Dehydrator Machine',
+        'Optional Line Equipment',
+        'Mixing Machine',
+        'Labelling Machine',
+        'Grinding Machine',
+        'Food machine',
+        'Other'
+      ],
+      message: 'Category must be one of the predefined values. Received: {VALUE}'
+    }
   },
   description: {
     type: String,
