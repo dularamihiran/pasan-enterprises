@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   PlusIcon, 
   CurrencyDollarIcon, 
@@ -20,8 +20,8 @@ const AddInventory = () => {
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
-
-  const categories = [
+  const [categories, setCategories] = useState([
+    // Fallback categories if API fails
     'Packing Machine',
     'Filling Machine',
     'Sealing Machine',
@@ -34,7 +34,34 @@ const AddInventory = () => {
     'Grinding Machine',
     'Food machine',
     'Other'
-  ];
+  ]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+
+  // Fetch categories from backend on component mount
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+        console.log('Fetching categories from:', `${API_BASE_URL}/categories/enums`);
+        
+        const response = await fetch(`${API_BASE_URL}/categories/enums`);
+        const data = await response.json();
+        
+        if (data.success && data.categories) {
+          console.log('✅ Categories fetched from backend:', data.categories);
+          setCategories(data.categories);
+        } else {
+          console.warn('⚠️  Using fallback categories - API response:', data);
+        }
+      } catch (error) {
+        console.error('❌ Failed to fetch categories, using fallback:', error);
+      } finally {
+        setCategoriesLoading(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -234,8 +261,11 @@ const AddInventory = () => {
                   onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50"
                   required
+                  disabled={categoriesLoading}
                 >
-                  <option value="">Select a category</option>
+                  <option value="">
+                    {categoriesLoading ? 'Loading categories...' : 'Select a category'}
+                  </option>
                   {categories.map(category => (
                     <option key={category} value={category}>{category}</option>
                   ))}
