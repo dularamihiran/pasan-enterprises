@@ -122,6 +122,9 @@ const createMachine = async (req, res) => {
   try {
     const { itemId, name, category, description, price, quantity } = req.body;
 
+    console.log('Received machine data:', { itemId, name, category, description, price, quantity }); // Debug log
+    console.log('Category value:', `"${category}"`, 'Length:', category?.length); // Debug log
+
     // Check if machine with itemId already exists
     const existingMachine = await Machine.findOne({ itemId });
     if (existingMachine) {
@@ -133,10 +136,10 @@ const createMachine = async (req, res) => {
 
     // Create new machine
     const machine = new Machine({
-      itemId,
-      name,
-      category,
-      description,
+      itemId: itemId?.trim(),
+      name: name?.trim(),
+      category: category?.trim(),
+      description: description?.trim(),
       price,
       quantity
     });
@@ -150,13 +153,19 @@ const createMachine = async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating machine:', error);
+    console.error('Error name:', error.name); // Debug log
+    console.error('Error details:', error.errors); // Debug log
     
     if (error.name === 'ValidationError') {
-      const errors = Object.values(error.errors).map(err => err.message);
+      const errors = Object.values(error.errors).map(err => {
+        console.log('Validation error field:', err.path, 'Value:', err.value, 'Message:', err.message); // Debug log
+        return `${err.path}: ${err.message}`;
+      });
       return res.status(400).json({
         success: false,
         message: 'Validation Error',
-        errors
+        errors,
+        details: error.message // Include full error message
       });
     }
     

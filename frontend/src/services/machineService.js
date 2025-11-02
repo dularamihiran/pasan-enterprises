@@ -89,17 +89,28 @@ export const machineService = {
   // Create new machine
   createMachine: async (machineData) => {
     try {
+      console.log('API URL:', `${API_BASE_URL}/machines`); // Debug log
+      console.log('Machine data to send:', machineData); // Debug log
+      
       const response = await fetch(`${API_BASE_URL}/machines`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         body: JSON.stringify(machineData),
       });
       
+      console.log('Response status:', response.status); // Debug log
+      
       const data = await response.json();
+      console.log('Response data:', data); // Debug log
       
       if (!response.ok) {
+        // Enhanced error message with backend validation errors
+        if (data.errors && Array.isArray(data.errors)) {
+          throw new Error(data.errors.join(', '));
+        }
         throw new Error(data.message || 'Failed to create machine');
       }
       
