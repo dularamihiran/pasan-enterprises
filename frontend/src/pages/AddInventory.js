@@ -38,6 +38,12 @@ const AddInventory = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    
+    // Debug log for category changes
+    if (name === 'category') {
+      console.log('Category selected:', `"${value}"`, 'Length:', value.length);
+    }
+    
     setFormData(prev => ({
       ...prev,
       [name]: value
@@ -57,6 +63,16 @@ const AddInventory = () => {
       setMessage({
         type: 'error',
         text: 'Please fill in all required fields (Item ID, Name, Category, Description, Quantity, and Price).'
+      });
+      return;
+    }
+
+    // Validate category
+    if (!categories.includes(formData.category)) {
+      console.error('Invalid category:', formData.category);
+      setMessage({
+        type: 'error',
+        text: 'Please select a valid category from the dropdown.'
       });
       return;
     }
@@ -86,15 +102,13 @@ const AddInventory = () => {
       const machineData = {
         itemId: formData.itemId.trim(),
         name: formData.name.trim(),
-        category: formData.category,
+        category: formData.category.trim(), // Trim category to remove any whitespace
         description: formData.description.trim(),
         quantity: parseInt(formData.quantity),
         price: parseFloat(formData.price)
       };
 
-      console.log('🔍 Machine data being sent:', machineData);
-      console.log('🔍 Category value:', machineData.category);
-      console.log('🔍 Category type:', typeof machineData.category);
+      console.log('Machine data being sent:', machineData); // Debug log
 
       // Call API to create machine
       const response = await machineService.createMachine(machineData);

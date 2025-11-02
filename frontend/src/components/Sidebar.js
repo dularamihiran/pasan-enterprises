@@ -169,7 +169,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, activeTab, setActiveTab }) => {
           <div className="text-center">
             <div className="text-xs text-slate-400 space-y-1">
               <p className="font-medium">&copy; 2025 P.E. INDUSTRIAL AUTOMATION</p>
-              <p className="text-slate-500">Version 1.0.2</p>
+              <p className="text-slate-500">Version 1.0.6</p>
             </div>
             <div className="mt-3 flex justify-center space-x-1">
               <div className="w-2 h-2 bg-gradient-to-r from-green-400 to-green-500 rounded-full animate-pulse"></div>
