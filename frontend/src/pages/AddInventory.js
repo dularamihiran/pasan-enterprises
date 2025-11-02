@@ -127,7 +127,7 @@ const AddInventory = () => {
   };
 
   const generateItemId = () => {
-    const prefix = formData.category ? formData.category.substring(0, 2).toUpperCase() : 'PE';
+    const prefix = 'PE';
     const randomNum = Math.floor(Math.random() * 900000) + 100000;
     const newId = `${prefix}-${randomNum}`;
     setFormData(prev => ({
@@ -173,7 +173,7 @@ const AddInventory = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Item ID
+                  Item ID <span className="text-slate-500 text-xs">(Enter custom ID or generate)</span>
                 </label>
                 <div className="flex space-x-2">
                   <input
@@ -181,7 +181,7 @@ const AddInventory = () => {
                     name="itemId"
                     value={formData.itemId}
                     onChange={handleInputChange}
-                    placeholder="e.g., HP-2000"
+                    placeholder="e.g., PE-123456 or custom ID"
                     className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50"
                     required
                   />
