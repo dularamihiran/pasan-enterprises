@@ -38,6 +38,12 @@ const AddInventory = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    
+    // Debug log for category changes
+    if (name === 'category') {
+      console.log('Category selected:', `"${value}"`, 'Length:', value.length);
+    }
+    
     setFormData(prev => ({
       ...prev,
       [name]: value
@@ -57,6 +63,16 @@ const AddInventory = () => {
       setMessage({
         type: 'error',
         text: 'Please fill in all required fields (Item ID, Name, Category, Description, Quantity, and Price).'
+      });
+      return;
+    }
+
+    // Validate category
+    if (!categories.includes(formData.category)) {
+      console.error('Invalid category:', formData.category);
+      setMessage({
+        type: 'error',
+        text: 'Please select a valid category from the dropdown.'
       });
       return;
     }
@@ -86,15 +102,13 @@ const AddInventory = () => {
       const machineData = {
         itemId: formData.itemId.trim(),
         name: formData.name.trim(),
-        category: formData.category,
+        category: formData.category.trim(), // Trim category to remove any whitespace
         description: formData.description.trim(),
         quantity: parseInt(formData.quantity),
         price: parseFloat(formData.price)
       };
 
-      console.log('🔍 Machine data being sent:', machineData);
-      console.log('🔍 Category value:', machineData.category);
-      console.log('🔍 Category type:', typeof machineData.category);
+      console.log('Machine data being sent:', machineData); // Debug log
 
       // Call API to create machine
       const response = await machineService.createMachine(machineData);
@@ -127,7 +141,7 @@ const AddInventory = () => {
   };
 
   const generateItemId = () => {
-    const prefix = formData.category ? formData.category.substring(0, 2).toUpperCase() : 'PE';
+    const prefix = 'PE';
     const randomNum = Math.floor(Math.random() * 900000) + 100000;
     const newId = `${prefix}-${randomNum}`;
     setFormData(prev => ({
@@ -173,7 +187,7 @@ const AddInventory = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Item ID
+                  Item ID <span className="text-slate-500 text-xs">(Enter custom ID or generate)</span>
                 </label>
                 <div className="flex space-x-2">
                   <input
@@ -181,7 +195,7 @@ const AddInventory = () => {
                     name="itemId"
                     value={formData.itemId}
                     onChange={handleInputChange}
-                    placeholder="e.g., HP-2000"
+                    placeholder="e.g., PE-123456 or custom ID"
                     className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50"
                     required
                   />
