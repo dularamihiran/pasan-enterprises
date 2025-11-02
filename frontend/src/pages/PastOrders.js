@@ -786,33 +786,33 @@ const PastOrders = () => {
   ];
 
   return (
-    <div className="p-6 bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen">
+    <div className="p-4 sm:p-6 bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen">
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-6 sm:mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-slate-800 flex items-center">
-              <ShoppingCartIcon className="w-8 h-8 mr-3 text-blue-600" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 flex items-center">
+              <ShoppingCartIcon className="w-6 h-6 sm:w-8 sm:h-8 mr-2 sm:mr-3 text-blue-600" />
               Order History
             </h1>
-            <p className="text-slate-600 mt-2">Track and manage all customer orders</p>
+            <p className="text-slate-600 mt-2 text-sm sm:text-base">Track and manage all customer orders</p>
           </div>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
         {stats.map((stat, index) => {
           const IconComponent = stat.icon;
           return (
-            <div key={index} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border border-slate-200">
+            <div key={index} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 sm:p-6 border border-slate-200">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-slate-600 text-sm font-medium">{stat.title}</p>
-                  <p className="text-2xl font-bold text-slate-800 mt-1">{stat.value}</p>
+                  <p className="text-slate-600 text-xs sm:text-sm font-medium">{stat.title}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-slate-800 mt-1">{stat.value}</p>
                 </div>
-                <div className={`p-3 rounded-xl bg-gradient-to-r ${stat.gradient}`}>
-                  <IconComponent className="w-6 h-6 text-white" />
+                <div className={`p-2 sm:p-3 rounded-xl bg-gradient-to-r ${stat.gradient}`}>
+                  <IconComponent className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
               </div>
             </div>
@@ -821,11 +821,11 @@ const PastOrders = () => {
       </div>
 
       {/* Search and Filters */}
-      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-6">
-        <div className="flex flex-col space-y-4">
+      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-4 sm:p-6 mb-4 sm:mb-6">
+        <div className="flex flex-col space-y-3 sm:space-y-4">
           {/* Search Bar */}
           <div className="relative flex-1">
-            <MagnifyingGlassIcon className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+            <MagnifyingGlassIcon className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search orders by ID, customer name, or phone..."

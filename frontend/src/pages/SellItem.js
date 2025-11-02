@@ -605,51 +605,51 @@ const SellItem = () => {
   };
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
           Sell Item
         </h1>
-        <p className="text-slate-600 mt-2">Process sales and manage customer orders</p>
+        <p className="text-slate-600 mt-2 text-sm sm:text-base">Process sales and manage customer orders</p>
       </div>
 
       {/* Alert Messages */}
       {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg flex items-center justify-between">
-          <div className="flex items-center">
-            <ExclamationTriangleIcon className="w-5 h-5 mr-2" />
-            {error}
+        <div className="mb-4 sm:mb-6 bg-red-50 border border-red-200 text-red-800 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg flex items-start sm:items-center justify-between">
+          <div className="flex items-start sm:items-center flex-1 min-w-0">
+            <ExclamationTriangleIcon className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5 sm:mt-0" />
+            <span className="text-sm sm:text-base break-words">{error}</span>
           </div>
-          <button onClick={clearMessages} className="text-red-600 hover:text-red-800">
+          <button onClick={clearMessages} className="text-red-600 hover:text-red-800 ml-2 flex-shrink-0">
             <XMarkIcon className="w-5 h-5" />
           </button>
         </div>
       )}
 
       {successMessage && (
-        <div className="mb-6 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg flex items-center justify-between">
-          <div className="flex items-center">
-            <CheckCircleIcon className="w-5 h-5 mr-2" />
-            {successMessage}
+        <div className="mb-4 sm:mb-6 bg-green-50 border border-green-200 text-green-800 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg flex items-start sm:items-center justify-between">
+          <div className="flex items-start sm:items-center flex-1 min-w-0">
+            <CheckCircleIcon className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5 sm:mt-0" />
+            <span className="text-sm sm:text-base break-words">{successMessage}</span>
           </div>
-          <button onClick={clearMessages} className="text-green-600 hover:text-green-800">
+          <button onClick={clearMessages} className="text-green-600 hover:text-green-800 ml-2 flex-shrink-0">
             <XMarkIcon className="w-5 h-5" />
           </button>
         </div>
       )}
 
       {/* First Row: Items and Cart Side by Side */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
         {/* Product Selection */}
         <div className="lg:col-span-1">
-          <div className="bg-white/60 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-200/50 p-6 h-full">
-            <h3 className="text-xl font-bold text-slate-800 mb-4">Available Machines</h3>
+          <div className="bg-white/60 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-200/50 p-4 sm:p-6 h-full">
+            <h3 className="text-lg sm:text-xl font-bold text-slate-800 mb-3 sm:mb-4">Available Machines</h3>
             
             {/* Search and Filter */}
-            <div className="flex flex-col md:flex-row gap-4 mb-6">
+            <div className="flex flex-col md:flex-row gap-3 sm:gap-4 mb-4 sm:mb-6">
               <div className="relative flex-1">
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400" />
                 <input
                   type="text"
                   placeholder="Search machines..."

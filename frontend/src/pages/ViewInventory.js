@@ -266,36 +266,36 @@ const ViewInventory = () => {
   };
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
           View Inventory
         </h1>
-        <p className="text-slate-600 mt-2">Manage and monitor your machinery inventory</p>
+        <p className="text-slate-600 mt-2 text-sm sm:text-base">Manage and monitor your machinery inventory</p>
       </div>
 
       {/* Search and Filter Bar */}
-      <div className="bg-white/60 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-200/50 p-6 mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
+      <div className="bg-white/60 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-200/50 p-4 sm:p-6 mb-4 sm:mb-6">
+        <div className="flex flex-col md:flex-row gap-3 sm:gap-4">
           {/* Search */}
           <div className="flex-1 relative">
-            <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400" />
             <input
               type="text"
               placeholder="Search by item name or ID..."
               value={searchTerm}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50"
+              className="w-full pl-9 sm:pl-10 pr-4 py-2.5 sm:py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50 text-sm sm:text-base"
             />
           </div>
 
           {/* Category Filter */}
           <div className="relative">
-            <FunnelIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <FunnelIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400" />
             <select
               value={filterCategory}
               onChange={(e) => handleCategoryChange(e.target.value)}
-              className="pl-10 pr-8 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50"
+              className="w-full md:w-auto pl-9 sm:pl-10 pr-8 py-2.5 sm:py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50 text-sm sm:text-base"
             >
               {categories.map(category => (
                 <option key={category} value={category}>

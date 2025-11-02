@@ -178,40 +178,40 @@ const AddInventory = () => {
   };
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
           Add Inventory
         </h1>
-        <p className="text-slate-600 mt-2">Add new items to your machinery inventory</p>
+        <p className="text-slate-600 mt-2 text-sm sm:text-base">Add new items to your machinery inventory</p>
       </div>
 
       <div className="max-w-4xl mx-auto">
         {/* Message Display */}
         {message.text && (
-          <div className={`mb-6 p-4 rounded-lg flex items-center ${
+          <div className={`mb-4 sm:mb-6 p-3 sm:p-4 rounded-lg flex items-start sm:items-center ${
             message.type === 'success' 
               ? 'bg-green-50 text-green-800 border border-green-200' 
               : 'bg-red-50 text-red-800 border border-red-200'
           }`}>
             {message.type === 'success' ? (
-              <CheckCircleIcon className="w-5 h-5 mr-2" />
+              <CheckCircleIcon className="w-5 h-5 mr-2 flex-shrink-0" />
             ) : (
-              <ExclamationCircleIcon className="w-5 h-5 mr-2" />
+              <ExclamationCircleIcon className="w-5 h-5 mr-2 flex-shrink-0" />
             )}
-            {message.text}
+            <span className="text-sm sm:text-base">{message.text}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
           {/* Basic Information */}
-          <div className="bg-white/60 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-200/50 p-6">
-            <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center">
-              <ClipboardDocumentListIcon className="w-6 h-6 mr-2" />
+          <div className="bg-white/60 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-200/50 p-4 sm:p-6">
+            <h3 className="text-lg sm:text-xl font-bold text-slate-800 mb-4 sm:mb-6 flex items-center">
+              <ClipboardDocumentListIcon className="w-5 h-5 sm:w-6 sm:h-6 mr-2" />
               Basic Information
             </h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Item ID <span className="text-slate-500 text-xs">(Enter custom ID or generate)</span>
@@ -292,13 +292,13 @@ const AddInventory = () => {
           </div>
 
           {/* Inventory Details */}
-          <div className="bg-white/60 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-200/50 p-6">
-            <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center">
-              <CurrencyDollarIcon className="w-6 h-6 mr-2" />
+          <div className="bg-white/60 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-200/50 p-4 sm:p-6">
+            <h3 className="text-lg sm:text-xl font-bold text-slate-800 mb-4 sm:mb-6 flex items-center">
+              <CurrencyDollarIcon className="w-5 h-5 sm:w-6 sm:h-6 mr-2" />
               Inventory Details
             </h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Quantity
@@ -335,7 +335,7 @@ const AddInventory = () => {
           </div>
 
           {/* Submit Button */}
-          <div className="flex justify-end space-x-4">
+          <div className="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4">
             <button
               type="button"
               onClick={() => {
@@ -349,14 +349,14 @@ const AddInventory = () => {
                 });
                 setMessage({ type: '', text: '' });
               }}
-              className="px-6 py-3 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+              className="w-full sm:w-auto px-6 py-3 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors text-sm sm:text-base"
               disabled={loading}
             >
               Clear Form
             </button>
             <button
               type="submit"
-              className="px-8 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg font-semibold hover:scale-105 transition-all duration-200 flex items-center disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+              className="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg font-semibold hover:scale-105 transition-all duration-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 text-sm sm:text-base"
               disabled={loading}
             >
               {loading ? (
