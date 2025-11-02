@@ -120,10 +120,54 @@ const getMachineById = async (req, res) => {
 // @access  Public
 const createMachine = async (req, res) => {
   try {
-    const { itemId, name, category, description, price, quantity } = req.body;
+    let { itemId, name, category, description, price, quantity } = req.body;
 
-    console.log('Received machine data:', { itemId, name, category, description, price, quantity }); // Debug log
-    console.log('Category value:', `"${category}"`, 'Length:', category?.length); // Debug log
+    console.log('Received machine data (raw):', { itemId, name, category, description, price, quantity }); // Debug log
+    console.log('Category value (raw):', `"${category}"`, 'Length:', category?.length); // Debug log
+    
+    // Trim all string values and remove any hidden whitespace/control characters
+    itemId = itemId?.trim().replace(/\s+/g, ' ').replace(/[\u200B-\u200D\uFEFF]/g, '');
+    name = name?.trim().replace(/\s+/g, ' ').replace(/[\u200B-\u200D\uFEFF]/g, '');
+    category = category?.trim().replace(/\s+/g, ' ').replace(/[\u200B-\u200D\uFEFF]/g, '');
+    description = description?.trim().replace(/\s+/g, ' ').replace(/[\u200B-\u200D\uFEFF]/g, '');
+    
+    console.log('After cleaning - Category:', `"${category}"`, 'Length:', category?.length); // Debug log
+    
+    // Debug: Check for hidden characters
+    const validCategories = [
+      'Packing Machine',
+      'Filling Machine',
+      'Sealing Machine',
+      'Capping Machine',
+      'Date Coding Machine',
+      'Dehydrator Machine',
+      'Optional Line Equipment',
+      'Mixing Machine',
+      'Labelling Machine',
+      'Grinding Machine',
+      'Food machine',
+      'Other'
+    ];
+    
+    if (category) {
+      console.log('Category char codes:', Array.from(category).map(c => c.charCodeAt(0))); // Debug log
+      console.log('Valid categories:', validCategories);
+      console.log('Is category valid?', validCategories.includes(category));
+      
+      // Manual validation before MongoDB
+      if (!validCategories.includes(category)) {
+        console.error('Category not found in valid list. Exact matches:');
+        validCategories.forEach(validCat => {
+          console.log(`  "${validCat}" === "${category}": ${validCat === category}`);
+        });
+        return res.status(400).json({
+          success: false,
+          message: `Invalid category. Please select from the predefined list.`,
+          receivedCategory: category,
+          validCategories: validCategories
+        });
+      }
+    }
 
     // Check if machine with itemId already exists
     const existingMachine = await Machine.findOne({ itemId });
@@ -134,12 +178,12 @@ const createMachine = async (req, res) => {
       });
     }
 
-    // Create new machine
+    // Create new machine with already-trimmed values
     const machine = new Machine({
-      itemId: itemId?.trim(),
-      name: name?.trim(),
-      category: category?.trim(),
-      description: description?.trim(),
+      itemId,
+      name,
+      category,
+      description,
       price,
       quantity
     });
