@@ -63,6 +63,7 @@ const customerRoutes = require('./routes/customers');
 const salesRoutes = require('./routes/sales');
 const pastOrderRoutes = require('./routes/pastOrders');
 const dashboardRoutes = require('./routes/dashboard');
+const categoriesRoutes = require('./routes/categories');
 
 // Use routes
 app.use('/api/users', userRoutes);
@@ -72,6 +73,7 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/sales', salesRoutes);
 app.use('/api/past-orders', pastOrderRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/categories', categoriesRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -88,6 +90,17 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Node server running on port ${PORT}`);
   console.log(`🌐 API available at http://localhost:${PORT}`);
   console.log(`📚 Health check: http://localhost:${PORT}/health`);
+  
+  // Log schema information for debugging
+  try {
+    const Machine = require('./models/Machine');
+    const categoryEnums = Machine.schema.path('category').enumValues;
+    console.log('\n📋 Machine Category Enum Values:');
+    console.log(`   Count: ${categoryEnums ? categoryEnums.length : 0}`);
+    console.log(`   Values:`, categoryEnums);
+  } catch (error) {
+    console.error('⚠️  Error loading Machine schema:', error.message);
+  }
 });
 
 module.exports = app;

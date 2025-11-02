@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { MACHINE_CATEGORIES } = require('../constants/categories');
 
 const machineSchema = new mongoose.Schema({
   itemId: {
@@ -17,20 +18,7 @@ const machineSchema = new mongoose.Schema({
     required: [true, 'Category is required'],
     trim: true,
     enum: {
-      values: [
-        'Packing Machine',
-        'Filling Machine',
-        'Sealing Machine',
-        'Capping Machine',
-        'Date Coding Machine',
-        'Dehydrator Machine',
-        'Optional Line Equipment',
-        'Mixing Machine',
-        'Labelling Machine',
-        'Grinding Machine',
-        'Food machine',
-        'Other'
-      ],
+      values: MACHINE_CATEGORIES,
       message: 'Category must be one of the predefined values. Received: {VALUE}'
     }
   },
