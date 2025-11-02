@@ -75,18 +75,18 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, activeTab, setActiveTab }) => {
       isCollapsed ? 'w-20' : 'w-72'
     }`}>
       {/* Header with Company Logo and Name */}
-      <div className="p-6 border-b border-slate-700/50 bg-gradient-to-r from-slate-800/50 to-slate-900/50 backdrop-blur-sm">
+      <div className="p-4 lg:p-6 border-b border-slate-700/50 bg-gradient-to-r from-slate-800/50 to-slate-900/50 backdrop-blur-sm">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3 lg:space-x-4">
             <img 
               src="/images/logo2.png" 
               alt="Pasan Enterprises Logo" 
-              className="w-12 h-12 object-contain"
+              className="w-10 h-10 lg:w-12 lg:h-12 object-contain flex-shrink-0"
               loading="lazy"
             />
             {!isCollapsed && (
-              <div className="transition-opacity duration-300">
-                <h1 className="text-xl font-bold bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+              <div className="transition-opacity duration-300 min-w-0">
+                <h1 className="text-base lg:text-xl font-bold bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent leading-tight">
                   P.E. INDUSTRIAL AUTOMATION 
                 </h1>
               </div>
@@ -95,14 +95,14 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, activeTab, setActiveTab }) => {
           {!isCollapsed && (
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
-              className="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition-all duration-200 border border-slate-600/50 hover:border-slate-500/50 backdrop-blur-sm hover:shadow-lg"
+              className="hidden lg:block p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition-all duration-200 border border-slate-600/50 hover:border-slate-500/50 backdrop-blur-sm hover:shadow-lg flex-shrink-0"
             >
               <ChevronLeftIcon className="w-5 h-5 text-slate-300" />
             </button>
           )}
         </div>
         {isCollapsed && (
-          <div className="flex justify-center mt-4">
+          <div className="hidden lg:flex justify-center mt-4">
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
               className="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition-all duration-200 border border-slate-600/50 hover:border-slate-500/50 backdrop-blur-sm hover:shadow-lg"
@@ -114,8 +114,8 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, activeTab, setActiveTab }) => {
       </div>
 
       {/* Navigation Menu */}
-      <nav className="flex-1 px-4 py-6">
-        <ul className="space-y-3">
+      <nav className="flex-1 px-3 lg:px-4 py-4 lg:py-6 overflow-y-auto">
+        <ul className="space-y-2 lg:space-y-3">
           {menuItems.map((item) => {
             const IconComponent = item.icon;
             const isActive = activeTab === item.id;
@@ -123,7 +123,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, activeTab, setActiveTab }) => {
               <li key={item.id}>
                 <button
                   onClick={() => setActiveTab(item.id)}
-                  className={`group w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3 text-left transition-all duration-200 rounded-xl relative overflow-hidden ${
+                  className={`group w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-3 lg:px-4'} py-2.5 lg:py-3 text-left transition-all duration-200 rounded-xl relative overflow-hidden ${
                     isActive 
                       ? 'bg-gradient-to-r ' + item.gradient + ' shadow-lg shadow-blue-500/25 scale-105' 
                       : 'hover:bg-slate-800/50 hover:scale-105 hover:shadow-md'
@@ -134,7 +134,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, activeTab, setActiveTab }) => {
                     <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent rounded-xl"></div>
                   )}
                   <div className={`relative flex items-center ${isCollapsed ? 'justify-center' : ''}`}>
-                    <div className={`p-2 rounded-lg transition-all duration-200 ${
+                    <div className={`p-1.5 lg:p-2 rounded-lg transition-all duration-200 ${
                       isActive 
                         ? 'bg-white/20 shadow-lg' 
                         : 'group-hover:bg-slate-700/50'
@@ -144,7 +144,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, activeTab, setActiveTab }) => {
                       }`} />
                     </div>
                     {!isCollapsed && (
-                      <span className={`ml-4 text-sm font-medium transition-all duration-200 ${
+                      <span className={`ml-3 lg:ml-4 text-sm font-medium transition-all duration-200 ${
                         isActive ? 'text-white' : 'text-slate-300 group-hover:text-white'
                       }`}>
                         {item.name}
@@ -164,14 +164,14 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, activeTab, setActiveTab }) => {
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-slate-700/50 bg-gradient-to-r from-slate-800/30 to-slate-900/30 backdrop-blur-sm">
+      <div className="p-3 lg:p-4 border-t border-slate-700/50 bg-gradient-to-r from-slate-800/30 to-slate-900/30 backdrop-blur-sm">
         {!isCollapsed ? (
           <div className="text-center">
             <div className="text-xs text-slate-400 space-y-1">
               <p className="font-medium">&copy; 2025 P.E. INDUSTRIAL AUTOMATION</p>
               <p className="text-slate-500">Version 1.0.6</p>
             </div>
-            <div className="mt-3 flex justify-center space-x-1">
+            <div className="mt-2 lg:mt-3 flex justify-center space-x-1">
               <div className="w-2 h-2 bg-gradient-to-r from-green-400 to-green-500 rounded-full animate-pulse"></div>
               <div className="w-2 h-2 bg-gradient-to-r from-blue-400 to-blue-500 rounded-full animate-pulse delay-100"></div>
               <div className="w-2 h-2 bg-gradient-to-r from-purple-400 to-purple-500 rounded-full animate-pulse delay-200"></div>

@@ -14,6 +14,7 @@ const Login = lazy(() => import('./pages/auth/Login'));
 
 function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true); // Add loading state for initial auth check
@@ -191,29 +192,56 @@ function App() {
   // Authenticated app layout
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Sidebar */}
-      <Sidebar
-        isCollapsed={sidebarCollapsed}
-        setIsCollapsed={setSidebarCollapsed}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-      />
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Sidebar - Slide in on mobile */}
+      <div className={`
+        fixed lg:relative inset-y-0 left-0 z-50 
+        transform transition-transform duration-300 ease-in-out
+        ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
+        <Sidebar
+          isCollapsed={sidebarCollapsed}
+          setIsCollapsed={setSidebarCollapsed}
+          activeTab={activeTab}
+          setActiveTab={(tab) => {
+            setActiveTab(tab);
+            setMobileMenuOpen(false); // Close mobile menu when selecting a tab
+          }}
+        />
+      </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col w-full lg:w-auto overflow-hidden">
         {/* Header */}
-        <header className="bg-white/80 backdrop-blur-sm shadow-sm border-b border-slate-200/50 px-8 py-5">
+        <header className="bg-white/80 backdrop-blur-sm shadow-sm border-b border-slate-200/50 px-4 sm:px-6 lg:px-8 py-4 lg:py-5">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="lg:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+
+            <h1 className="text-lg sm:text-xl lg:text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent truncate">
               Inventory Management System
             </h1>
 
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2 sm:space-x-4">
+              <div className="flex items-center space-x-2 sm:space-x-3">
                 {currentUser && (
-                  <div className="flex items-center space-x-2">
+                  <div className="hidden sm:flex items-center space-x-2">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                    <span className="text-sm text-slate-600 font-medium">
+                    <span className="text-xs sm:text-sm text-slate-600 font-medium truncate max-w-[150px]">
                        {currentUser.fullName || currentUser.username}
                     </span>
                   </div>
@@ -221,7 +249,7 @@ function App() {
                 
                 <button
                   onClick={handleLogout}
-                  className="px-3 py-1 rounded-md bg-red-500 hover:bg-red-600 text-white text-sm font-medium transition-colors shadow-sm"
+                  className="px-2 sm:px-3 py-1 rounded-md bg-red-500 hover:bg-red-600 text-white text-xs sm:text-sm font-medium transition-colors shadow-sm"
                 >
                   Logout
                 </button>
@@ -231,7 +259,7 @@ function App() {
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-4 sm:p-6">
           {renderPage()}
         </main>
       </div>
