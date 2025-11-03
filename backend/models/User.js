@@ -23,7 +23,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['admin', 'manager', 'employee'],
+    enum: ['admin', 'employee'],
     default: 'employee'
   },
   isActive: {
@@ -40,8 +40,8 @@ userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
   
   try {
-    // Hash password with cost of 12
-    const hashedPassword = await bcrypt.hash(this.password, 12);
+    // Hash password with cost of 10 (standard and secure)
+    const hashedPassword = await bcrypt.hash(this.password, 10);
     this.password = hashedPassword;
     next();
   } catch (error) {
