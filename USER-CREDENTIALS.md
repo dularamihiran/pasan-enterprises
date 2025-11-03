@@ -4,35 +4,31 @@
 
 ### 👑 Admin Accounts (Full Dashboard Access)
 
-| Username | Password    | Full Name             | Role  | Dashboard Access |
-|----------|-------------|-----------------------|-------|------------------|
-| `admin`  | `admin123`  | System Administrator  | admin | ✅ Yes           |
-| `dulara` | `dulara123` | Dulara Mihiran        | admin | ✅ Yes           |
-| `pasan`  | `pasan123`  | Pasan Enterprises     | admin | ✅ Yes           |
+| Username | Password    | Full Name            | Role  | Dashboard Access |
+| -------- | ----------- | -------------------- | ----- | ---------------- |
+| `admin`  | `admin123`  | System Administrator | admin | ✅ Yes           |
+| `dulara` | `dulara123` | Dulara Mihiran       | admin | ✅ Yes           |
+| `pasan`  | `pasan123`  | Pasan Enterprises    | admin | ✅ Yes           |
 
-### 👔 Manager Account (No Dashboard Access)
+### Employee Account (No Dashboard Access)
 
-| Username  | Password      | Full Name          | Role    | Dashboard Access |
-|-----------|---------------|--------------------|---------|------------------|
-| `manager` | `manager123`  | Inventory Manager  | manager | ❌ No            |
-
-### 👷 Employee Account (No Dashboard Access)
-
-| Username   | Password       | Full Name      | Role     | Dashboard Access |
-|------------|----------------|----------------|----------|------------------|
-| `employee` | `employee123`  | Staff Employee | employee | ❌ No            |
+| Username   | Password      | Full Name      | Role     | Dashboard Access |
+| ---------- | ------------- | -------------- | -------- | ---------------- |
+| `employee` | `employee123` | Staff Employee | employee | ❌ No            |
 
 ---
 
 ## 🔄 How to Create/Seed Users
 
 ### Method 1: Run the Seed Script
+
 ```bash
 cd backend
 npm run seed-users
 ```
 
 This will:
+
 - Create all the default users listed above
 - Skip users that already exist (won't create duplicates)
 - Show a summary of created/skipped users
@@ -42,6 +38,7 @@ This will:
 **POST** `http://localhost:5000/api/users`
 
 **Body:**
+
 ```json
 {
   "username": "newuser",
@@ -53,40 +50,36 @@ This will:
 ```
 
 **Available Roles:**
+
 - `admin` - Full access (Dashboard + All Pages) - **ONLY role with Dashboard access**
-- `manager` - Limited access (All Pages EXCEPT Dashboard)  
 - `employee` - Limited access (All Pages EXCEPT Dashboard)
 
 ---
 
 ## 📊 Access Control Matrix
 
-| Page/Feature     | Admin | Manager | Employee |
-|------------------|-------|---------|----------|
-| Dashboard        | ✅    | ❌      | ❌       |
-| View Inventory   | ✅    | ✅      | ✅       |
-| Sell Item        | ✅    | ✅      | ✅       |
-| Past Orders      | ✅    | ✅      | ✅       |
-| Add Inventory    | ✅    | ✅      | ✅       |
-| Customers        | ✅    | ✅      | ✅       |
+| Page/Feature   | Admin | Employee |
+| -------------- | ----- | -------- |
+| Dashboard      | ✅    | ❌       |
+| View Inventory | ✅    | ✅       |
+| Sell Item      | ✅    | ✅       |
+| Past Orders    | ✅    | ✅       |
+| Add Inventory  | ✅    | ✅       |
+| Customers      | ✅    | ✅       |
 
 ---
 
 ## 🧪 Testing Different User Roles
 
 ### Test Admin Access:
+
 1. Login with `admin` / `admin123`
 2. ✅ Dashboard menu item should be **visible**
 3. ✅ Can access dashboard page
 4. ✅ All features available
 
-### Test Manager Access:
-1. Login with `manager` / `manager123`
-2. ❌ Dashboard menu item should be **hidden**
-3. ❌ Cannot access dashboard (shows "Access Denied" if tried)
-4. ✅ Can access all other pages (Inventory, Sell Item, Orders, Customers)
-
 ### Test Employee Access:
+
 1. Login with `employee` / `employee123`
 2. ❌ Dashboard menu item should be **hidden**
 3. ❌ Cannot access dashboard (shows "Access Denied" if tried)
@@ -96,7 +89,7 @@ This will:
 
 ## 🔒 Security Notes
 
-1. **Password Hashing**: All passwords are hashed with bcrypt (cost factor: 12)
+1. **Password Hashing**: All passwords are hashed with bcrypt (cost factor: 10)
 2. **JWT Tokens**: Stored in sessionStorage, expire in 24 hours
 3. **Role Validation**: Both frontend (UI) and backend (API) check roles
 4. **Active Status**: Users can be soft-deleted by setting `isActive: false`
@@ -106,20 +99,19 @@ This will:
 ## 🛠️ Password Management
 
 ### Change Password (Manual - MongoDB)
+
 Since there's no password change UI yet, use MongoDB directly:
 
 ```javascript
 // In MongoDB Shell or Compass
-const bcrypt = require('bcrypt');
-const newPassword = await bcrypt.hash('newpassword123', 12);
+const bcrypt = require("bcrypt");
+const newPassword = await bcrypt.hash("newpassword123", 12);
 
-db.users.updateOne(
-  { username: 'admin' },
-  { $set: { password: newPassword } }
-);
+db.users.updateOne({ username: "admin" }, { $set: { password: newPassword } });
 ```
 
 ### Reset All Passwords
+
 Run the seed script again - it will skip existing users but you can modify the script to force update.
 
 ---
@@ -127,6 +119,7 @@ Run the seed script again - it will skip existing users but you can modify the s
 ## 📝 Creating Additional Users
 
 ### Via Seed Script:
+
 Edit `backend/seedUsers.js` and add more users:
 
 ```javascript
@@ -134,7 +127,7 @@ Edit `backend/seedUsers.js` and add more users:
   username: 'yourname',
   password: 'yourpassword',
   fullName: 'Your Full Name',
-  role: 'admin',  // or 'manager' or 'employee'
+  role: 'admin',  // or 'employee'
   isActive: true
 }
 ```
@@ -142,6 +135,7 @@ Edit `backend/seedUsers.js` and add more users:
 Then run: `npm run seed-users`
 
 ### Via API (Postman/Thunder Client):
+
 ```bash
 POST http://localhost:5000/api/users
 Content-Type: application/json
@@ -170,6 +164,7 @@ Content-Type: application/json
 ## 🔍 Checking Existing Users
 
 ### View All Users in Database:
+
 ```bash
 # In backend directory
 node -e "
@@ -191,6 +186,7 @@ mongoose.connect(process.env.MONGODB_URI).then(async () => {
 ```
 
 ### Via API:
+
 ```bash
 GET http://localhost:5000/api/users
 Authorization: Bearer YOUR_JWT_TOKEN
