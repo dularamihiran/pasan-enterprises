@@ -15,7 +15,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, activeTab, setActiveTab }) => {
   // Get current user to check role-based access
   const currentUser = authService.getCurrentUser();
   
-  // Define which roles can access dashboard (ONLY admin - no manager or employee)
+  // Define which roles can access dashboard (ONLY admin)
   const canAccessDashboard = currentUser && currentUser.role === 'admin';
 
   // Memoize menu items to prevent recreation on every render
@@ -23,7 +23,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, activeTab, setActiveTab }) => {
   const menuItems = useMemo(() => {
     const items = [];
     
-    // Only show dashboard for admin and manager roles
+    // Only show dashboard for admin role
     if (canAccessDashboard) {
       items.push({
         id: 'dashboard',
