@@ -7,7 +7,8 @@ import {
   UsersIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  ChartBarIcon
+  ChartBarIcon,
+  BanknotesIcon
 } from '@heroicons/react/24/outline';
 import authService from '../services/authService';
 
@@ -52,6 +53,12 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, activeTab, setActiveTab }) => {
         name: 'Past Orders',
         icon: ClockIcon,
         gradient: 'from-orange-500 to-orange-600',
+      },
+      {
+        id: 'refunds',
+        name: 'Refunds',
+        icon: BanknotesIcon,
+        gradient: 'from-red-500 to-red-600',
       },
       {
         id: 'add-inventory',

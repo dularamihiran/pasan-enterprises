@@ -1,6 +1,7 @@
 const Machine = require('../models/Machine');
 const Customer = require('../models/Customer');
 const PastOrder = require('../models/PastOrder');
+const Refund = require('../models/Refund');
 
 // @desc    Get monthly revenue for current month
 // @route   GET /api/dashboard/monthly-revenue
@@ -24,10 +25,19 @@ const getMonthlyRevenue = async (req, res) => {
       return sum + (order.finalTotal || order.total || 0);
     }, 0);
 
+    // Get refunds for this month (only approved/completed refunds)
+    const refundStats = await Refund.getTotalRefundsForPeriod(startOfMonth, endOfMonth);
+    const monthlyRefunds = refundStats.totalRefundAmount || 0;
+
+    // Calculate net revenue (revenue - refunds)
+    const netMonthlyRevenue = monthlyRevenue - monthlyRefunds;
+
     res.json({
       success: true,
       data: {
-        revenue: monthlyRevenue,
+        revenue: netMonthlyRevenue,
+        grossRevenue: monthlyRevenue,
+        refunds: monthlyRefunds,
         orderCount: monthOrders.length,
         month: today.toLocaleString('en-US', { month: 'long' }),
         year: today.getFullYear()
@@ -195,6 +205,7 @@ const getMonthlyGraph = async (req, res) => {
     const rangeStart = new Date(monthsWindow[0].year, monthsWindow[0].monthIndex, 1);
     const rangeEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
 
+    // Get revenue by month
     const revenueByMonth = await PastOrder.aggregate([
       {
         $match: {
@@ -222,17 +233,51 @@ const getMonthlyGraph = async (req, res) => {
       }
     ]);
 
+    // Get refunds by month
+    const refundsByMonth = await Refund.aggregate([
+      {
+        $match: {
+          refundDate: {
+            $gte: rangeStart,
+            $lte: rangeEnd
+          },
+          refundStatus: { $in: ['approved', 'completed'] }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$refundDate' },
+            month: { $month: '$refundDate' }
+          },
+          totalRefunds: { $sum: '$refundAmount' }
+        }
+      }
+    ]);
+
     const revenueMap = new Map();
     revenueByMonth.forEach((item) => {
       const key = `${item._id.year}-${item._id.month}`;
       revenueMap.set(key, item.totalRevenue || 0);
     });
 
+    const refundsMap = new Map();
+    refundsByMonth.forEach((item) => {
+      const key = `${item._id.year}-${item._id.month}`;
+      refundsMap.set(key, item.totalRefunds || 0);
+    });
+
     const monthlyData = monthsWindow.map((month) => {
       const key = `${month.year}-${month.monthNumber}`;
+      const grossRevenue = revenueMap.get(key) || 0;
+      const refunds = refundsMap.get(key) || 0;
+      const netRevenue = grossRevenue - refunds;
+      
       return {
         month: month.label,
-        revenue: revenueMap.get(key) || 0,
+        revenue: netRevenue,
+        grossRevenue: grossRevenue,
+        refunds: refunds,
         year: month.year,
         monthNumber: month.monthNumber,
         isCurrentMonth: month.isCurrentMonth
