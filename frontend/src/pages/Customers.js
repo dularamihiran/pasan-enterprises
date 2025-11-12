@@ -9,7 +9,6 @@ import {
   EnvelopeIcon,
   IdentificationIcon,
   UserPlusIcon,
-  CurrencyDollarIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
   XMarkIcon
@@ -200,12 +199,6 @@ const Customers = () => {
       value: `${currentPage} of ${totalPages}`,
       icon: UserPlusIcon,
       gradient: 'from-green-500 to-green-600'
-    },
-    {
-      title: 'Total Revenue',
-      value: Array.isArray(customers) ? formatCurrency(customers.reduce((sum, customer) => sum + (customer.totalSpent || 0), 0)) : formatCurrency(0),
-      icon: CurrencyDollarIcon,
-      gradient: 'from-purple-500 to-purple-600'
     }
   ];
 
@@ -232,7 +225,7 @@ const Customers = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
         {stats.map((stat, index) => {
           const IconComponent = stat.icon;
           return (

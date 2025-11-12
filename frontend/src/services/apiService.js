@@ -21,7 +21,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000, // 30 seconds timeout for slower operations like dashboard stats
+  timeout: 90000, // 90 seconds timeout to handle Render cold starts (free tier can take 60+ seconds)
 });
 
 // Request interceptor
@@ -45,6 +45,18 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
+    // Handle timeout errors (server cold start)
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      console.error('Request timeout - Server may be waking up from sleep');
+      error.userMessage = 'Server is starting up. Please try again in a moment.';
+    }
+    
+    // Handle network errors (server offline)
+    if (!error.response && error.message === 'Network Error') {
+      console.error('Network error - Server may be offline');
+      error.userMessage = 'Unable to connect to server. Please check your internet connection.';
+    }
+    
     // Handle common errors
     if (error.response?.status === 401) {
       // Handle unauthorized access
@@ -52,6 +64,12 @@ api.interceptors.response.use(
       sessionStorage.removeItem('user');
       sessionStorage.removeItem('isLoggedIn');
       window.location.href = '/login';
+    }
+    
+    // Handle server errors
+    if (error.response?.status >= 500) {
+      console.error('Server error:', error.response.status);
+      error.userMessage = 'Server error. Please try again later.';
     }
     
     return Promise.reject(error);
@@ -145,6 +163,27 @@ export const pastOrdersAPI = {
   update: (orderId, data) => api.put(`/past-orders/${orderId}`, data),
   // Update payment for an order
   updatePayment: (orderId, data) => api.patch(`/past-orders/${orderId}/payment`, data),
+};
+
+// Refund API
+export const refundAPI = {
+  // Get all refunds with optional filters
+  getAll: (params = {}) => api.get('/refunds', { params }),
+  
+  // Get single refund by ID
+  getById: (id) => api.get(`/refunds/${id}`),
+  
+  // Create new refund
+  create: (data) => api.post('/refunds', data),
+  
+  // Update refund
+  update: (id, data) => api.put(`/refunds/${id}`, data),
+  
+  // Delete refund
+  delete: (id) => api.delete(`/refunds/${id}`),
+  
+  // Get refund statistics
+  getStats: () => api.get('/refunds/stats/summary'),
 };
 
 // User API
