@@ -299,7 +299,7 @@ const getMonthlyGraph = async (req, res) => {
   }
 };
 
-// @desc    Get top 3 best selling machines for 2025
+// @desc    Get top 6 best selling machines for 2025
 // @route   GET /api/dashboard/best-selling-machines
 // @access  Public
 const getBestSellingMachines = async (req, res) => {
@@ -338,9 +338,9 @@ const getBestSellingMachines = async (req, res) => {
       {
         $sort: { totalQuantitySold: -1 }
       },
-      // Limit to top 3
+      // Limit to top 6
       {
-        $limit: 3
+        $limit: 6
       },
       // Lookup machine details
       {
