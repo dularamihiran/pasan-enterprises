@@ -1,5 +1,6 @@
 const PastOrder = require('../models/PastOrder');
 const Machine = require('../models/Machine');
+const Refund = require('../models/Refund');
 
 // @desc    Get all past orders
 // @route   GET /api/past-orders
@@ -13,6 +14,9 @@ const getAllOrders = async (req, res) => {
     const endDate = req.query.endDate;
     const status = req.query.status;
     const search = req.query.search;
+    const fromDate = req.query.fromDate;
+    const toDate = req.query.toDate;
+    const paymentFilter = req.query.paymentFilter;
 
     // Build query
     let query = {};
@@ -21,11 +25,22 @@ const getAllOrders = async (req, res) => {
       query.customerId = customerId;
     }
     
-    if (startDate && endDate) {
-      query.createdAt = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate)
-      };
+    // Handle date range (support both old and new parameter names)
+    const dateStart = fromDate || startDate;
+    const dateEnd = toDate || endDate;
+    
+    if (dateStart || dateEnd) {
+      query.createdAt = {};
+      if (dateStart) {
+        const fromDateTime = new Date(dateStart);
+        fromDateTime.setHours(0, 0, 0, 0);
+        query.createdAt.$gte = fromDateTime;
+      }
+      if (dateEnd) {
+        const toDateTime = new Date(dateEnd);
+        toDateTime.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = toDateTime;
+      }
     }
     
     if (status && status !== 'all') {
@@ -45,11 +60,79 @@ const getAllOrders = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // Execute query with pagination and populate customer
-    const orders = await PastOrder.find(query)
+    let orders = await PastOrder.find(query)
       .populate('customerId', 'name phone email')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
+
+    // Apply payment filter if specified (processing or completed)
+    if (paymentFilter && paymentFilter !== 'all') {
+      // For payment filtering, we need to fetch more orders and filter them
+      // So let's re-query without pagination first
+      const allMatchingOrders = await PastOrder.find(query)
+        .populate('customerId', 'name phone email')
+        .sort({ createdAt: -1 });
+      
+      // Filter based on payment status
+      const filteredOrders = allMatchingOrders.filter(order => {
+        const paidAmount = Number(order.paidAmount || order.paid_amount || 0);
+        const finalTotal = order.finalTotal || order.total || 0;
+        const remainingAmount = finalTotal - paidAmount;
+        
+        // Check if all items are returned
+        const allItemsReturned = order.items && order.items.length > 0 && 
+          order.items.every(item => {
+            const originalQty = Number(item.original_quantity ?? item.quantity ?? item.originalQuantity ?? 0);
+            const returnedQty = Number(item.returned_quantity ?? item.returnedQuantity ?? 0);
+            const isFullyReturned = item.returned === true || returnedQty >= originalQty;
+            return isFullyReturned;
+          });
+        
+        if (paymentFilter === 'processing') {
+          // Processing: NOT fully paid AND items still active (not all returned)
+          return remainingAmount > 0 && !allItemsReturned;
+        } else if (paymentFilter === 'completed') {
+          // Completed: full payment OR all items returned (order is effectively closed)
+          return remainingAmount <= 0 || allItemsReturned;
+        }
+        
+        return true;
+      });
+      
+      // Apply pagination to filtered results
+      const total = filteredOrders.length;
+      orders = filteredOrders.slice(skip, skip + limit);
+      
+      // Correct orderStatus based on payment status for each order
+      const correctedOrders = orders.map(order => {
+        const orderObj = order.toObject ? order.toObject() : order;
+        
+        // If order has remaining amount but status is 'Completed', change to 'Processing'
+        if (orderObj.orderStatus === 'Completed' && 
+            orderObj.remainingAmount && 
+            orderObj.remainingAmount > 0) {
+          orderObj.orderStatus = 'Processing';
+        }
+        
+        // If order has no remaining amount but status is 'Processing', change to 'Completed'
+        if (orderObj.orderStatus === 'Processing' && 
+            (!orderObj.remainingAmount || orderObj.remainingAmount === 0)) {
+          orderObj.orderStatus = 'Completed';
+        }
+        
+        return orderObj;
+      });
+      
+      return res.json({
+        success: true,
+        count: correctedOrders.length,
+        total,
+        page,
+        pages: Math.ceil(total / limit),
+        data: correctedOrders
+      });
+    }
 
     // Correct orderStatus based on payment status for each order
     const correctedOrders = orders.map(order => {
@@ -609,6 +692,55 @@ const returnItem = async (req, res) => {
     console.log(`✅ Item returned: ${returnedItem.name} (Qty: ${returnQuantity} of ${returnedItem.quantity + newReturnedQuantity})`);
     console.log(`📦 Machine stock updated: ${machine.name} - New quantity: ${machine.quantity}`);
 
+    // ===== AUTO-CREATE REFUND RECORD IF NEEDED =====
+    let refundRecord = null;
+    if (refundNeeded > 0) {
+      try {
+        // Check if refund already exists for this order
+        const existingRefund = await Refund.findOne({ orderId: order._id });
+        
+        if (existingRefund) {
+          // Update existing refund amount
+          existingRefund.refundAmount = refundNeeded;
+          existingRefund.refundReason = `Item return - ${returnedItem.name} (${returnQuantity} units)`;
+          existingRefund.refundDate = new Date();
+          existingRefund.refundStatus = 'pending';
+          await existingRefund.save();
+          refundRecord = existingRefund;
+          console.log(`📝 Updated existing refund record: ${refundNeeded.toFixed(2)}`);
+        } else {
+          // Create new refund record
+          const newRefund = new Refund({
+            orderId: order._id,
+            customerId: order.customerId,
+            customerInfo: {
+              name: order.customerInfo?.name || 'Unknown',
+              phone: order.customerInfo?.phone || '',
+              email: order.customerInfo?.email || ''
+            },
+            orderInfo: {
+              orderId: order.orderId,
+              originalTotal: oldFinalTotal
+            },
+            originalAmount: oldFinalTotal,
+            refundAmount: refundNeeded,
+            refundReason: `Item return - ${returnedItem.name} (${returnQuantity} units returned)`,
+            refundDate: new Date(),
+            refundStatus: 'pending',
+            processedBy: 'System',
+            notes: `Auto-generated refund due to item return. Customer overpaid.`
+          });
+          
+          await newRefund.save();
+          refundRecord = newRefund;
+          console.log(`✅ Created refund record: ${refundNeeded.toFixed(2)}`);
+        }
+      } catch (refundError) {
+        console.error('Error creating refund record:', refundError);
+        // Don't fail the return operation if refund creation fails
+      }
+    }
+
     // Fetch updated order with populated data
     const updatedOrder = await PastOrder.findById(orderId)
       .populate('customerId', 'name phone email')
@@ -616,7 +748,9 @@ const returnItem = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Item returned successfully and order total updated',
+      message: refundNeeded > 0 
+        ? 'Item returned successfully. Refund record created - customer overpaid.' 
+        : 'Item returned successfully and order total updated',
       data: {
         order: updatedOrder,
         returnedItem: {
@@ -645,7 +779,13 @@ const returnItem = async (req, res) => {
           refundNeeded: refundNeeded.toFixed(2),
           paymentStatus: order.paymentStatus,
           orderStatus: order.orderStatus
-        }
+        },
+        refundRecord: refundRecord ? {
+          id: refundRecord._id,
+          amount: refundRecord.refundAmount,
+          status: refundRecord.refundStatus,
+          created: true
+        } : null
       }
     });
   } catch (error) {

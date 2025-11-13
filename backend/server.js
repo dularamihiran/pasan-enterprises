@@ -64,6 +64,7 @@ const salesRoutes = require('./routes/sales');
 const pastOrderRoutes = require('./routes/pastOrders');
 const dashboardRoutes = require('./routes/dashboard');
 const categoriesRoutes = require('./routes/categories');
+const refundRoutes = require('./routes/refunds');
 
 // Use routes
 app.use('/api/users', userRoutes);
@@ -74,6 +75,7 @@ app.use('/api/sales', salesRoutes);
 app.use('/api/past-orders', pastOrderRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/categories', categoriesRoutes);
+app.use('/api/refunds', refundRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

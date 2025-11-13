@@ -306,7 +306,7 @@ const PastOrders = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalOrders, setTotalOrders] = useState(0);
   const [allTimeOrdersCount, setAllTimeOrdersCount] = useState(0);
-  const [thisYearRevenue, setThisYearRevenue] = useState(0);
+  const [processingOrdersCount, setProcessingOrdersCount] = useState(0);
   const ordersPerPage = 20;
 
 
@@ -315,100 +315,38 @@ const PastOrders = () => {
       setLoading(true);
       setError('');
       
-      // If we have ANY filters, get ALL data (up to 1000 orders) for client-side filtering
-      const hasFilters = searchTerm.trim() || fromDate || toDate || paymentFilter !== 'all';
-      
       const params = {
-        page: 1, // Always get from page 1 when filtering
-        limit: hasFilters ? 1000 : ordersPerPage // Get ALL orders if filtering, otherwise paginate
+        page: currentPage,
+        limit: ordersPerPage
       };
       
-      // Add search parameter if search term exists and backend supports it
+      // Add search parameter
       if (searchTerm.trim()) {
         params.search = searchTerm.trim();
+      }
+      
+      // Add date range parameters
+      if (fromDate) {
+        params.fromDate = fromDate;
+      }
+      if (toDate) {
+        params.toDate = toDate;
+      }
+      
+      // Add payment filter parameter
+      if (paymentFilter !== 'all') {
+        params.paymentFilter = paymentFilter;
       }
       
       const response = await pastOrdersAPI.getAll(params);
       console.log('Orders API Response:', response.data);
       
       if (response.data.success) {
-        let ordersData = response.data.data || [];
+        const ordersData = response.data.data || [];
         
-        // Client-side filtering for dates and payment status
-        if (hasFilters) {
-          ordersData = ordersData.filter(order => {
-            const matchesSearch = !searchTerm.trim() || 
-              order.orderId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              order.customerInfo?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              order.customerInfo?.phone?.includes(searchTerm);
-            
-            let matchesDateRange = true;
-            if (fromDate || toDate) {
-              const orderDate = new Date(order.createdAt);
-              
-              if (fromDate) {
-                const fromDateTime = new Date(fromDate);
-                fromDateTime.setHours(0, 0, 0, 0);
-                matchesDateRange = matchesDateRange && orderDate >= fromDateTime;
-              }
-              
-              if (toDate) {
-                const toDateTime = new Date(toDate);
-                toDateTime.setHours(23, 59, 59, 999);
-                matchesDateRange = matchesDateRange && orderDate <= toDateTime;
-              }
-            }
-            
-            // Payment filter logic
-            let matchesPaymentFilter = true;
-            if (paymentFilter !== 'all') {
-              const paidAmount = Number(order.paidAmount ?? order.paid_amount ?? 0);
-              const finalTotal = order.finalTotal || order.total || 0;
-              const remainingAmount = finalTotal - paidAmount;
-              
-              // Check if all items are returned
-              const allItemsReturned = order.items && order.items.length > 0 && 
-                order.items.every(item => {
-                  const originalQty = Number(item.original_quantity ?? item.quantity ?? item.originalQuantity ?? 0);
-                  const returnedQty = Number(item.returned_quantity ?? item.returnedQuantity ?? 0);
-                  const isFullyReturned = item.returned === true || returnedQty >= originalQty;
-                  return isFullyReturned;
-                });
-              
-              if (paymentFilter === 'processing') {
-                // Processing: NOT fully paid AND items still active (not all returned)
-                // This includes: partial payment (paidAmount > 0 && remainingAmount > 0)
-                //           OR: pending payment (paidAmount = 0 && remainingAmount > 0)
-                matchesPaymentFilter = remainingAmount > 0 && !allItemsReturned;
-              } else if (paymentFilter === 'completed') {
-                // Completed: full payment OR all items returned (order is effectively closed)
-                matchesPaymentFilter = remainingAmount <= 0 || allItemsReturned;
-              }
-            }
-            
-            return matchesSearch && matchesDateRange && matchesPaymentFilter;
-          });
-          
-          // Store total filtered count BEFORE pagination
-          const totalFiltered = ordersData.length;
-          console.log(`Filter applied: ${paymentFilter}, Total matching orders: ${totalFiltered}`);
-          
-          // Apply pagination manually for filtered results
-          const startIndex = (currentPage - 1) * ordersPerPage;
-          const endIndex = startIndex + ordersPerPage;
-          const paginatedData = ordersData.slice(startIndex, endIndex);
-          
-          console.log(`Showing ${paginatedData.length} orders (page ${currentPage}, showing ${startIndex + 1}-${Math.min(endIndex, totalFiltered)} of ${totalFiltered})`);
-          
-          setOrders(paginatedData);
-          setTotalPages(Math.ceil(totalFiltered / ordersPerPage));
-          setTotalOrders(totalFiltered);
-        } else {
-          // No filters, use server pagination
-          setOrders(Array.isArray(ordersData) ? ordersData : []);
-          setTotalPages(response.data.pages || 1);
-          setTotalOrders(response.data.total || 0);
-        }
+        setOrders(Array.isArray(ordersData) ? ordersData : []);
+        setTotalPages(response.data.pages || 1);
+        setTotalOrders(response.data.total || 0);
         
         // Set all-time orders count (for when no filters are applied)
         if (!searchTerm.trim() && !fromDate && !toDate && paymentFilter === 'all') {
@@ -445,44 +383,27 @@ const PastOrders = () => {
         setAllTimeOrdersCount(allOrdersResponse.data.total || 0);
       }
 
-      // Get this year's revenue - get all orders and filter by year
-      const currentYear = new Date().getFullYear();
-      
+      // Get processing orders count using backend filter
       try {
-        // Get all orders (or a large number) to calculate this year's revenue
-        const allOrdersForRevenue = await pastOrdersAPI.getAll({ 
-          limit: 2000 // Get a large number to ensure we get most orders
+        const processingOrdersResponse = await pastOrdersAPI.getAll({ 
+          page: 1,
+          limit: 1,
+          paymentFilter: 'processing'
         });
         
-        if (allOrdersForRevenue.data.success) {
-          const allOrders = allOrdersForRevenue.data.data || [];
-          console.log('All orders for revenue calculation:', allOrders.length);
-          
-          // Filter orders for this year and calculate revenue
-          const thisYearOrders = allOrders.filter(order => {
-            const orderYear = new Date(order.createdAt).getFullYear();
-            return orderYear === currentYear;
-          });
-          
-          console.log('This year orders:', thisYearOrders.length);
-          
-          const yearRevenue = thisYearOrders.reduce((sum, order) => {
-            const orderTotal = order.finalTotal || order.total || 0;
-            return sum + orderTotal;
-          }, 0);
-          
-          console.log('This year revenue:', yearRevenue);
-          setThisYearRevenue(yearRevenue);
+        if (processingOrdersResponse.data.success) {
+          console.log('Processing orders count:', processingOrdersResponse.data.total);
+          setProcessingOrdersCount(processingOrdersResponse.data.total || 0);
         }
-      } catch (yearErr) {
-        console.error('Error loading year revenue:', yearErr);
-        setThisYearRevenue(0);
+      } catch (processingErr) {
+        console.error('Error loading processing orders count:', processingErr);
+        setProcessingOrdersCount(0);
       }
     } catch (err) {
-        console.error('Error loading overall stats:', err);
-        // Don't show error to user for stats, just log it
-      }
-    }, []);
+      console.error('Error loading overall stats:', err);
+      // Don't show error to user for stats, just log it
+    }
+  }, []);
 
     // Run loadOverallStats on mount
     React.useEffect(() => {
@@ -761,9 +682,6 @@ const PastOrders = () => {
     setShowOrderDetails(true);
   };
 
-  // Calculate this year's orders
-  const currentYear = new Date().getFullYear();
-
   const stats = [
     {
       title: 'Total Orders',
@@ -778,10 +696,10 @@ const PastOrders = () => {
       gradient: 'from-purple-500 to-purple-600'
     },
     {
-      title: `Total Revenue ${currentYear}`,
-      value: formatCurrency(thisYearRevenue),
-      icon: CurrencyDollarIcon,
-      gradient: 'from-green-500 to-green-600'
+      title: 'Processing Orders',
+      value: processingOrdersCount.toString(),
+      icon: ClockIcon,
+      gradient: 'from-orange-500 to-orange-600'
     }
   ];
 
@@ -1039,6 +957,14 @@ const PastOrders = () => {
                         // Determine actual status based on payment and returns
                         let displayStatus = order.orderStatus;
                         
+                        // Check if order has any returned items
+                        const hasReturnedItems = order.items && order.items.length > 0 && 
+                          order.items.some(item => {
+                            const returnedQty = Number(item.returned_quantity ?? item.returnedQuantity ?? 0);
+                            const isReturned = item.returned === true || returnedQty > 0;
+                            return isReturned;
+                          });
+                        
                         // Check if all items are returned
                         const allItemsReturned = order.items && order.items.length > 0 && 
                           order.items.every(item => {
@@ -1048,11 +974,19 @@ const PastOrders = () => {
                             return isFullyReturned;
                           });
                         
-                        // If all items returned, show as Completed regardless of payment status
-                        if (allItemsReturned) {
+                        // Check if order has refund (overpayment)
+                        const paymentStatus = getPaymentStatus(order);
+                        const hasRefund = paymentStatus.isRefundNeeded && paymentStatus.refundAmount > 0;
+                        
+                        // Priority 1: If has returned items AND refund needed, show as "Returned"
+                        if (hasReturnedItems && hasRefund) {
+                          displayStatus = 'Returned';
+                        }
+                        // Priority 2: If all items returned, show as Completed regardless of payment status
+                        else if (allItemsReturned) {
                           displayStatus = 'Completed';
                         }
-                        // If orderStatus is 'Completed' but payment is not full and items NOT all returned, override to 'Processing'
+                        // Priority 3: If orderStatus is 'Completed' but payment is not full and items NOT all returned, override to 'Processing'
                         else if (order.orderStatus === 'Completed' && 
                             (order.paymentStatus === 'partial' || order.paymentStatus === 'Partial' || 
                              order.paymentStatus === 'pending' || order.paymentStatus === 'Pending' ||
@@ -1425,6 +1359,14 @@ const PastOrders = () => {
                     // Determine actual status based on payment and returns
                     let displayStatus = selectedOrder.orderStatus;
                     
+                    // Check if order has any returned items
+                    const hasReturnedItems = selectedOrder.items && selectedOrder.items.length > 0 && 
+                      selectedOrder.items.some(item => {
+                        const returnedQty = Number(item.returned_quantity ?? item.returnedQuantity ?? 0);
+                        const isReturned = item.returned === true || returnedQty > 0;
+                        return isReturned;
+                      });
+                    
                     // Check if all items are returned
                     const allItemsReturned = selectedOrder.items && selectedOrder.items.length > 0 && 
                       selectedOrder.items.every(item => {
@@ -1434,11 +1376,19 @@ const PastOrders = () => {
                         return isFullyReturned;
                       });
                     
-                    // If all items returned, show as Completed regardless of payment status
-                    if (allItemsReturned) {
+                    // Check if order has refund (overpayment)
+                    const paymentStatus = getPaymentStatus(selectedOrder);
+                    const hasRefund = paymentStatus.isRefundNeeded && paymentStatus.refundAmount > 0;
+                    
+                    // Priority 1: If has returned items AND refund needed, show as "Returned"
+                    if (hasReturnedItems && hasRefund) {
+                      displayStatus = 'Returned';
+                    }
+                    // Priority 2: If all items returned, show as Completed regardless of payment status
+                    else if (allItemsReturned) {
                       displayStatus = 'Completed';
                     }
-                    // If orderStatus is 'Completed' but payment is not full and items NOT all returned, override to 'Processing'
+                    // Priority 3: If orderStatus is 'Completed' but payment is not full and items NOT all returned, override to 'Processing'
                     else if (selectedOrder.orderStatus === 'Completed' && 
                         (selectedOrder.paymentStatus === 'partial' || selectedOrder.paymentStatus === 'Partial' || 
                          selectedOrder.paymentStatus === 'pending' || selectedOrder.paymentStatus === 'Pending' ||
