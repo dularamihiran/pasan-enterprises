@@ -343,14 +343,15 @@ pastOrderSchema.pre('save', function(next) {
   // Calculate extras total
   this.extrasTotal = this.extras.reduce((sum, extra) => sum + extra.amount, 0);
   
-  // STEP 3: Calculate final total BEFORE returns
+  // STEP 3: Calculate final total (ORIGINAL - keep this as the actual amount customer paid)
+  // DO NOT reduce finalTotal for returns - refund system handles revenue reduction
   const finalTotalBeforeReturn = originalTotalBeforeDiscount - discountAmount + this.extrasTotal;
   
-  // STEP 4: Calculate final total AFTER returns
-  // finalTotalAfterReturn = finalTotalBeforeReturn - returnedValue
-  this.finalTotal = finalTotalBeforeReturn - returnedValue;
+  // Keep finalTotal as the original amount (what customer actually paid)
+  // This ensures dashboard revenue is accurate (only reduced by approved refunds)
+  this.finalTotal = finalTotalBeforeReturn;
   
-  // Store current totals in order (for display purposes)
+  // Store current totals in order (for display purposes - shows active order value after returns)
   this.subtotal = currentSubtotal;
   this.vatAmount = currentVatAmount;
   this.totalBeforeDiscount = currentSubtotal + currentVatAmount;

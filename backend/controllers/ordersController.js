@@ -692,24 +692,39 @@ const returnItem = async (req, res) => {
     console.log(`✅ Item returned: ${returnedItem.name} (Qty: ${returnQuantity} of ${returnedItem.quantity + newReturnedQuantity})`);
     console.log(`📦 Machine stock updated: ${machine.name} - New quantity: ${machine.quantity}`);
 
-    // ===== AUTO-CREATE REFUND RECORD IF NEEDED =====
+    // ===== CREATE REFUND RECORD (Status: Pending) =====
+    // Refund is created for EVERY item return (not just when overpaid)
+    // Revenue is NOT affected until refund is approved/completed in Refunds page
     let refundRecord = null;
-    if (refundNeeded > 0) {
+    let isRefundUpdated = false;
+    const refundAmountToCreate = returnAmount; // Use the actual item return value
+    
+    if (refundAmountToCreate > 0) {
       try {
+        console.log(`\n💰 Creating refund record for returned items...`);
+        console.log(`   Return Amount: LKR ${refundAmountToCreate.toFixed(2)}`);
+        
         // Check if refund already exists for this order
         const existingRefund = await Refund.findOne({ orderId: order._id });
         
         if (existingRefund) {
-          // Update existing refund amount
-          existingRefund.refundAmount = refundNeeded;
-          existingRefund.refundReason = `Item return - ${returnedItem.name} (${returnQuantity} units)`;
-          existingRefund.refundDate = new Date();
-          existingRefund.refundStatus = 'pending';
+          console.log(`ℹ️  Refund already exists for this order (ID: ${existingRefund._id})`);
+          console.log(`   Existing Amount: LKR ${existingRefund.refundAmount.toFixed(2)}`);
+          console.log(`   Adding new return amount: LKR ${refundAmountToCreate.toFixed(2)}`);
+          
+          // Update existing refund with additional return amount
+          existingRefund.refundAmount += refundAmountToCreate;
+          existingRefund.refundReason += `\n+ Item return - ${returnedItem.name} (${returnQuantity} units returned)`;
+          existingRefund.notes = (existingRefund.notes || '') + `\nUpdated: ${new Date().toLocaleString()} - Additional return`;
           await existingRefund.save();
+          
           refundRecord = existingRefund;
-          console.log(`📝 Updated existing refund record: ${refundNeeded.toFixed(2)}`);
+          isRefundUpdated = true;
+          console.log(`✅ Updated existing refund. New total: LKR ${existingRefund.refundAmount.toFixed(2)}`);
         } else {
-          // Create new refund record
+          // Create new refund record with PENDING status
+          console.log(`   Creating NEW refund record...`);
+          
           const newRefund = new Refund({
             orderId: order._id,
             customerId: order.customerId,
@@ -723,22 +738,28 @@ const returnItem = async (req, res) => {
               originalTotal: oldFinalTotal
             },
             originalAmount: oldFinalTotal,
-            refundAmount: refundNeeded,
+            refundAmount: refundAmountToCreate,
             refundReason: `Item return - ${returnedItem.name} (${returnQuantity} units returned)`,
             refundDate: new Date(),
-            refundStatus: 'pending',
+            refundStatus: 'pending', // PENDING - does not affect dashboard revenue yet
             processedBy: 'System',
-            notes: `Auto-generated refund due to item return. Customer overpaid.`
+            notes: `Auto-created from item return. Awaiting approval to affect revenue.`
           });
           
           await newRefund.save();
           refundRecord = newRefund;
-          console.log(`✅ Created refund record: ${refundNeeded.toFixed(2)}`);
+          isRefundUpdated = false;
+          console.log(`✅ Created PENDING refund record ID: ${newRefund._id}`);
+          console.log(`   Amount: LKR ${refundAmountToCreate.toFixed(2)}`);
+          console.log(`   Status: pending (revenue NOT affected yet)`);
         }
       } catch (refundError) {
-        console.error('Error creating refund record:', refundError);
+        console.error('❌ Error creating refund record:', refundError);
+        console.error('   Error details:', refundError.message);
         // Don't fail the return operation if refund creation fails
       }
+    } else {
+      console.log(`⚠️  No refund created (return amount is 0)`);
     }
 
     // Fetch updated order with populated data
@@ -748,9 +769,9 @@ const returnItem = async (req, res) => {
 
     res.json({
       success: true,
-      message: refundNeeded > 0 
-        ? 'Item returned successfully. Refund record created - customer overpaid.' 
-        : 'Item returned successfully and order total updated',
+      message: refundRecord 
+        ? `Item returned successfully. Refund record ${isRefundUpdated ? 'updated' : 'created'} (LKR ${refundRecord.refundAmount.toFixed(2)} - pending approval).` 
+        : 'Item returned successfully.',
       data: {
         order: updatedOrder,
         returnedItem: {
@@ -778,13 +799,19 @@ const returnItem = async (req, res) => {
           remainingAmount: (order.remainingAmount || 0).toFixed(2),
           refundNeeded: refundNeeded.toFixed(2),
           paymentStatus: order.paymentStatus,
-          orderStatus: order.orderStatus
+          orderStatus: order.orderStatus,
+          note: refundRecord 
+            ? `Refund record ${isRefundUpdated ? 'updated' : 'created'} with PENDING status. Go to Refunds page to process.` 
+            : null
         },
         refundRecord: refundRecord ? {
           id: refundRecord._id,
           amount: refundRecord.refundAmount,
           status: refundRecord.refundStatus,
-          created: true
+          created: !isRefundUpdated,
+          message: isRefundUpdated 
+            ? `Existing refund updated. Total refund amount: LKR ${refundRecord.refundAmount.toFixed(2)}` 
+            : `New refund created. Amount: LKR ${refundRecord.refundAmount.toFixed(2)}. Go to Refunds page to process.`
         } : null
       }
     });
