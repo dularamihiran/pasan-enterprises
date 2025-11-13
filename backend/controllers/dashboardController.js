@@ -12,25 +12,37 @@ const getMonthlyRevenue = async (req, res) => {
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59);
 
+    console.log(`\n📊 DASHBOARD: Calculating Monthly Revenue`);
+    console.log(`   Period: ${startOfMonth.toLocaleDateString()} to ${endOfMonth.toLocaleDateString()}`);
+
     // Get all orders from this month
     const monthOrders = await PastOrder.find({
       createdAt: {
         $gte: startOfMonth,
         $lte: endOfMonth
       }
-    }).select('finalTotal total').lean();
+    }).select('finalTotal total orderId').lean();
+
+    console.log(`   Found ${monthOrders.length} orders this month`);
 
     // Calculate total revenue (use finalTotal which includes VAT, discount, extras)
     const monthlyRevenue = monthOrders.reduce((sum, order) => {
       return sum + (order.finalTotal || order.total || 0);
     }, 0);
 
+    console.log(`   Gross Revenue: LKR ${monthlyRevenue.toFixed(2)}`);
+
     // Get refunds for this month (only approved/completed refunds)
     const refundStats = await Refund.getTotalRefundsForPeriod(startOfMonth, endOfMonth);
     const monthlyRefunds = refundStats.totalRefundAmount || 0;
 
+    console.log(`   Monthly Refunds: LKR ${monthlyRefunds.toFixed(2)}`);
+
     // Calculate net revenue (revenue - refunds)
     const netMonthlyRevenue = monthlyRevenue - monthlyRefunds;
+
+    console.log(`   Net Revenue: LKR ${netMonthlyRevenue.toFixed(2)}`);
+    console.log(`   ======================================`);
 
     res.json({
       success: true,
@@ -233,22 +245,22 @@ const getMonthlyGraph = async (req, res) => {
       }
     ]);
 
-    // Get refunds by month
+    // Get refunds by month (use updatedAt - when refund was approved)
     const refundsByMonth = await Refund.aggregate([
       {
         $match: {
-          refundDate: {
+          updatedAt: {
             $gte: rangeStart,
             $lte: rangeEnd
           },
-          refundStatus: { $in: ['approved', 'completed'] }
+          refundStatus: { $in: ['refunded', 'approved', 'completed'] }
         }
       },
       {
         $group: {
           _id: {
-            year: { $year: '$refundDate' },
-            month: { $month: '$refundDate' }
+            year: { $year: '$updatedAt' },
+            month: { $month: '$updatedAt' }
           },
           totalRefunds: { $sum: '$refundAmount' }
         }

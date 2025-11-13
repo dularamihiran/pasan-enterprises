@@ -64,7 +64,7 @@ const refundSchema = new mongoose.Schema({
   },
   refundStatus: {
     type: String,
-    enum: ['pending', 'approved', 'completed', 'rejected'],
+    enum: ['pending', 'refunded', 'approved', 'completed', 'rejected'],
     default: 'pending'
   },
   refundType: {

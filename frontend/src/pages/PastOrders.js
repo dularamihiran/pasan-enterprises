@@ -476,8 +476,13 @@ const PastOrders = () => {
           // Check if refund is needed (negative balance)
           const refundNeeded = parseFloat(paymentInfo.refundNeeded || 0);
           if (refundNeeded > 0) {
-            alertMessage += `⚠️ REFUND NEEDED: LKR ${paymentInfo.refundNeeded}\n` +
-              `Customer has overpaid. Please refund LKR ${paymentInfo.refundNeeded}`;
+            alertMessage += `\n⚠️ REFUND NEEDED: LKR ${paymentInfo.refundNeeded}\n` +
+              `✅ Refund record created with PENDING status\n\n` +
+              `📝 NEXT STEP: Go to REFUNDS PAGE\n` +
+              `   - Review the pending refund\n` +
+              `   - Change status to APPROVED or COMPLETED\n` +
+              `   - This will update dashboard revenue\n\n` +
+              `ℹ️  Revenue is NOT affected until you approve the refund!`;
           } else {
             alertMessage += `Remaining Balance: LKR ${paymentInfo.remainingAmount}\n` +
               `Payment Status: ${paymentInfo.paymentStatus}`;
