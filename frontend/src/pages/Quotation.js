@@ -375,7 +375,7 @@ const Quotation = () => {
         <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-800 to-indigo-600 bg-clip-text text-transparent">
           Create Quotation
         </h1>
-        <p className="text-slate-600 mt-2 text-sm sm:text-base">Generate professional quotations for customers</p>
+        <p className="text-slate-600 mt-2 text-sm sm:text-base">Generate quotations for customers</p>
       </div>
 
       {error && (
