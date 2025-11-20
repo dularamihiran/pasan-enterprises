@@ -111,10 +111,10 @@ const Quotation = () => {
 
     try {
       setCustomerSearchLoading(true);
-      const response = await customerAPI.search(searchTerm);
+      const response = await customerAPI.getAll({ search: searchTerm, limit: 10 });
       
-      if (response.data && Array.isArray(response.data)) {
-        setCustomerSearchResults(response.data);
+      if (response.data && response.data.success && Array.isArray(response.data.data)) {
+        setCustomerSearchResults(response.data.data);
         setShowCustomerDropdown(true);
       }
     } catch (err) {
