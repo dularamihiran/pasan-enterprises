@@ -713,66 +713,69 @@ const Quotation = () => {
         </div>
       </div>
 
-      {/* Extra Charges Section */}
-      <div className="bg-white/60 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-200/50 p-6 mb-6">
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-lg font-bold text-slate-800">Extra Charges</h3>
-          <button
-            onClick={addExtra}
-            className="text-sm bg-indigo-500 text-white px-3 py-1 rounded-lg hover:bg-indigo-600 flex items-center"
-          >
-            <PlusIcon className="w-4 h-4 mr-1" />
-            Add
-          </button>
-        </div>
-        
-        {extras.length === 0 ? (
-          <p className="text-slate-500 text-center py-3 text-sm">No extra charges</p>
-        ) : (
-          <div className="space-y-3">
-            {extras.map((extra, index) => (
-              <div key={index} className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Description"
-                  value={extra.description}
-                  onChange={(e) => updateExtra(index, 'description', e.target.value)}
-                  className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white/50"
-                />
-                <input
-                  type="number"
-                  placeholder="Amount"
-                  value={extra.amount || ''}
-                  onChange={(e) => updateExtra(index, 'amount', parseFloat(e.target.value) || 0)}
-                  className="w-32 px-2 py-2 border border-slate-300 rounded-lg text-sm bg-white/50"
-                />
-                <button
-                  onClick={() => removeExtra(index)}
-                  className="text-red-500 hover:text-red-700 p-2"
-                >
-                  <XMarkIcon className="w-5 h-5" />
-                </button>
-              </div>
-            ))}
+      {/* Extra Charges and Discount Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6">
+        {/* Extra Charges Section */}
+        <div className="bg-white/60 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-200/50 p-6">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-lg font-bold text-slate-800">Extra Charges</h3>
+            <button
+              onClick={addExtra}
+              className="text-sm bg-indigo-500 text-white px-3 py-1 rounded-lg hover:bg-indigo-600 flex items-center"
+            >
+              <PlusIcon className="w-4 h-4 mr-1" />
+              Add
+            </button>
           </div>
-        )}
-      </div>
+          
+          {extras.length === 0 ? (
+            <p className="text-slate-500 text-center py-3 text-sm">No extra charges</p>
+          ) : (
+            <div className="space-y-3">
+              {extras.map((extra, index) => (
+                <div key={index} className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Description"
+                    value={extra.description}
+                    onChange={(e) => updateExtra(index, 'description', e.target.value)}
+                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white/50"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Amount"
+                    value={extra.amount || ''}
+                    onChange={(e) => updateExtra(index, 'amount', parseFloat(e.target.value) || 0)}
+                    className="w-32 px-2 py-2 border border-slate-300 rounded-lg text-sm bg-white/50"
+                  />
+                  <button
+                    onClick={() => removeExtra(index)}
+                    className="text-red-500 hover:text-red-700 p-2"
+                  >
+                    <XMarkIcon className="w-5 h-5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
-      {/* Discount Section */}
-      <div className="bg-white/60 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-200/50 p-6 mb-6">
-        <h3 className="text-lg font-bold text-slate-800 mb-4">Discount</h3>
-        <div className="max-w-md">
-          <label className="block text-sm font-medium text-slate-700 mb-1">Discount (%)</label>
-          <input
-            type="number"
-            min="0"
-            max="100"
-            step="0.1"
-            value={discountPercentage}
-            onChange={(e) => setDiscountPercentage(parseFloat(e.target.value) || 0)}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white/50 text-sm"
-            placeholder="Enter discount percentage"
-          />
+        {/* Discount Section */}
+        <div className="bg-white/60 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-200/50 p-6">
+          <h3 className="text-lg font-bold text-slate-800 mb-4">Discount</h3>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Discount (%)</label>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="0.1"
+              value={discountPercentage}
+              onChange={(e) => setDiscountPercentage(parseFloat(e.target.value) || 0)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white/50 text-sm"
+              placeholder="Enter discount percentage"
+            />
+          </div>
         </div>
       </div>
 
