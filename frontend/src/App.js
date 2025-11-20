@@ -7,6 +7,7 @@ import { userAPI } from './services/apiService';
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const ViewInventory = lazy(() => import('./pages/ViewInventory'));
 const SellItem = lazy(() => import('./pages/SellItem'));
+const Quotation = lazy(() => import('./pages/Quotation'));
 const PastOrders = lazy(() => import('./pages/PastOrders'));
 const Refunds = lazy(() => import('./pages/Refunds'));
 const AddInventory = lazy(() => import('./pages/AddInventory'));
@@ -98,6 +99,8 @@ function App() {
           return <ViewInventory />;
         case 'sell-item':
           return <SellItem />;
+        case 'quotation':
+          return <Quotation />;
         case 'past-orders':
           return <PastOrders />;
         case 'refunds':
