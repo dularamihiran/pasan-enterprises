@@ -422,7 +422,7 @@ const SellItem = () => {
       // Validate payment inputs
       let paidToSend = Number(paidAmount) || 0;
       if (paymentType === 'partial') {
-        if (paidToSend <= 0) {
+        if (paidToSend < 0) {
           setError('Paid amount must be greater than 0 for partial payments.');
           setProcessing(false);
           return;

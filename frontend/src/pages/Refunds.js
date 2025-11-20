@@ -310,19 +310,19 @@ const Refunds = () => {
       title: `${currentMonth} Refunds`,
       value: formatCurrency(monthlyRefunds),
       icon: CalendarDaysIcon,
-      gradient: 'from-red-500 to-red-600'
+      gradient: 'from-blue-500 to-blue-600'
     },
     {
       title: `${currentYear} Refunds`,
       value: formatCurrency(yearlyRefunds),
       icon: BanknotesIcon,
-      gradient: 'from-orange-500 to-orange-600'
+      gradient: 'from-purple-500 to-purple-600'
     },
     {
       title: 'Total Refunds',
       value: refundCount.toString(),
       icon: DocumentTextIcon,
-      gradient: 'from-purple-500 to-purple-600'
+      gradient: 'from-orange-500 to-orange-600'
     }
   ];
 
@@ -343,17 +343,14 @@ const Refunds = () => {
         {stats.map((stat, index) => {
           const IconComponent = stat.icon;
           return (
-            <div
-              key={index}
-              className={`bg-gradient-to-br ${stat.gradient} rounded-xl shadow-lg p-4 sm:p-6 text-white transform hover:scale-105 transition-all duration-200`}
-            >
+            <div key={index} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 sm:p-6 border border-slate-200">
               <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs sm:text-sm font-medium opacity-90 truncate">{stat.title}</p>
-                  <p className="text-xl sm:text-2xl lg:text-3xl font-bold mt-1 sm:mt-2 break-words">{stat.value}</p>
+                <div>
+                  <p className="text-slate-600 text-xs sm:text-sm font-medium">{stat.title}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-slate-800 mt-1">{stat.value}</p>
                 </div>
-                <div className="bg-white/20 p-2 sm:p-3 rounded-lg flex-shrink-0 ml-2 sm:ml-4">
-                  <IconComponent className="w-6 h-6 sm:w-8 sm:h-8" />
+                <div className={`p-2 sm:p-3 rounded-xl bg-gradient-to-r ${stat.gradient}`}>
+                  <IconComponent className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
               </div>
             </div>
