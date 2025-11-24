@@ -207,10 +207,10 @@ const Quotation = () => {
     if (!item) return;
 
     const currentImages = item.images || [];
-    const remainingSlots = 5 - currentImages.length;
+    const remainingSlots = 1 - currentImages.length;
 
     if (remainingSlots <= 0) {
-      setError('Maximum 5 images allowed per machine');
+      setError('Maximum 1 image allowed per machine');
       setTimeout(() => setError(''), 3000);
       return;
     }
@@ -637,35 +637,34 @@ const Quotation = () => {
                         onChange={(e) => updateQuotationItem(item.machineId, 'extraDescription', e.target.value)}
                         placeholder="Add any additional details or specifications..."
                         className="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-indigo-500"
-                        rows="2"
+                        rows="5"
                       />
                     </div>
 
                     {/* Image Upload */}
                     <div className="mb-3">
                       <label className="block text-xs font-medium text-slate-700 mb-1">
-                        Images ({item.images?.length || 0}/5)
+                        Images ({item.images?.length || 0}/1)
                       </label>
                       <input
                         type="file"
                         accept="image/*"
-                        multiple
                         onChange={(e) => handleImageUpload(item.machineId, e.target.files)}
                         className="hidden"
                         id={`image-upload-${item.machineId}`}
-                        disabled={(item.images?.length || 0) >= 5}
+                        disabled={(item.images?.length || 0) >= 1}
                       />
                       <label
                         htmlFor={`image-upload-${item.machineId}`}
                         className={`flex items-center justify-center px-3 py-2 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
-                          (item.images?.length || 0) >= 5
+                          (item.images?.length || 0) >= 1
                             ? 'border-slate-300 bg-slate-100 cursor-not-allowed'
                             : 'border-indigo-300 bg-indigo-50 hover:bg-indigo-100'
                         }`}
                       >
                         <PhotoIcon className="w-5 h-5 mr-2 text-indigo-600" />
                         <span className="text-xs text-slate-700">
-                          {(item.images?.length || 0) >= 5 ? 'Maximum images reached' : 'Upload Images'}
+                          {(item.images?.length || 0) >= 1 ? 'Remove the image below to add a different image' : 'Upload Image'}
                         </span>
                       </label>
                       
