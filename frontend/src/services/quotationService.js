@@ -164,7 +164,7 @@ export const generateQuotationPDF = async (quotationData) => {
     // Document title
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.text('QUOTATION', pageWidth / 2, yPosition, { align: 'center' });
+    doc.text('QUOTATION FOR MACHINERY', pageWidth / 2, yPosition, { align: 'center' });
     yPosition += 15;
     
     // Quotation details
@@ -191,102 +191,206 @@ export const generateQuotationPDF = async (quotationData) => {
     doc.text(`Time: ${quotationTime}`, pageWidth - 15, yPosition, { align: 'right' });
     yPosition += 15;
     
-    // Items section
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.text('ITEMS:', 15, yPosition);
-    yPosition += 10;
+    // Items section - Table format
+    checkNewPage(80);
     
-    // Process each item with details and images
+    // Table configuration
+    const tableStartX = 15;
+    const tableWidth = pageWidth - 30;
+    const colWidths = {
+      no: 10,
+      item: 75,
+      qty: 20,
+      unitCost: 35,
+      totalCost: 55
+    };
+    
+    // Draw table header
+    doc.setDrawColor(0, 0, 0);
+    doc.setFillColor(255, 255, 255);
+    
+    let xPos = tableStartX;
+    const headerHeight = 10;
+    
+    // Header background
+    doc.rect(tableStartX, yPosition, tableWidth, headerHeight, 'FD');
+    
+    // Header text
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    
+    // NO. column
+    doc.text('NO.', xPos + colWidths.no / 2, yPosition + 6, { align: 'center' });
+    xPos += colWidths.no;
+    doc.line(xPos, yPosition, xPos, yPosition + headerHeight);
+    
+    // ITEM column
+    doc.text('ITEM', xPos + colWidths.item / 2, yPosition + 6, { align: 'center' });
+    xPos += colWidths.item;
+    doc.line(xPos, yPosition, xPos, yPosition + headerHeight);
+    
+    // QTY column
+    doc.text('QTY', xPos + colWidths.qty / 2, yPosition + 6, { align: 'center' });
+    xPos += colWidths.qty;
+    doc.line(xPos, yPosition, xPos, yPosition + headerHeight);
+    
+    // UNIT COST column
+    doc.text('UNIT COST', xPos + colWidths.unitCost / 2, yPosition + 4, { align: 'center' });
+    doc.setFontSize(9);
+    doc.text('(LKR)', xPos + colWidths.unitCost / 2, yPosition + 8, { align: 'center' });
+    doc.setFontSize(10);
+    xPos += colWidths.unitCost;
+    doc.line(xPos, yPosition, xPos, yPosition + headerHeight);
+    
+    // TOTAL COST column
+    doc.text('TOTAL COST', xPos + colWidths.totalCost / 2, yPosition + 4, { align: 'center' });
+    doc.setFontSize(9);
+    doc.text('(LKR)', xPos + colWidths.totalCost / 2, yPosition + 8, { align: 'center' });
+    
+    yPosition += headerHeight;
+    
+    // Draw table rows
+    doc.setFont('helvetica', 'normal');
     let itemNumber = 1;
+    
     for (const item of quotationData.items) {
-      checkNewPage(60); // Ensure space for item
-      
-      // Item header
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${itemNumber}. ${item.name}`, 15, yPosition);
-      yPosition += 6;
-      
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Item ID: ${item.itemId}`, 15, yPosition);
-      yPosition += 6;
-      
-      // Item details in a box
-      const detailsStartY = yPosition;
-      doc.setDrawColor(200, 200, 200);
-      doc.rect(15, yPosition - 2, pageWidth - 30, 30);
-      
-      doc.setFontSize(9);
-      doc.text(`Quantity: ${item.quantity}`, 20, yPosition + 3);
-      doc.text(`Unit Price: Rs. ${formatNumberWithCommas(item.unitPrice)}`, 20, yPosition + 8);
-      doc.text(`VAT: ${item.vatPercentage}%`, 20, yPosition + 13);
-      doc.text(`Warranty: ${item.warrantyMonths} months`, 20, yPosition + 18);
-      
       const itemTotal = item.unitPrice * item.quantity;
+      
+      // Calculate row height based on content
+      const imageSize = 40;
+      let textHeight = 20;
+      
+      // Calculate description height
+      if (item.extraDescription && item.extraDescription.trim()) {
+        const descLines = doc.splitTextToSize(item.extraDescription, colWidths.item - 6);
+        textHeight = Math.max(textHeight, descLines.length * 4 + 20);
+      }
+      
+      // Add image height below text if image exists
+      const rowHeight = item.images && item.images.length > 0 ? textHeight + imageSize + 5 : textHeight;
+      
+      // Check if new page needed
+      if (yPosition + rowHeight > pageHeight - marginBottom) {
+        doc.addPage();
+        currentPage++;
+        addHeader();
+        yPosition = 55;
+        
+        // Redraw table header on new page
+        doc.setDrawColor(0, 0, 0);
+        doc.setFillColor(240, 240, 240);
+        doc.rect(tableStartX, yPosition, tableWidth, headerHeight, 'FD');
+        
+        xPos = tableStartX;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.text('NO.', xPos + colWidths.no / 2, yPosition + 6, { align: 'center' });
+        xPos += colWidths.no;
+        doc.line(xPos, yPosition, xPos, yPosition + headerHeight);
+        doc.text('ITEM', xPos + colWidths.item / 2, yPosition + 6, { align: 'center' });
+        xPos += colWidths.item;
+        doc.line(xPos, yPosition, xPos, yPosition + headerHeight);
+        doc.text('QTY', xPos + colWidths.qty / 2, yPosition + 6, { align: 'center' });
+        xPos += colWidths.qty;
+        doc.line(xPos, yPosition, xPos, yPosition + headerHeight);
+        doc.text('UNIT COST', xPos + colWidths.unitCost / 2, yPosition + 4, { align: 'center' });
+        doc.setFontSize(9);
+        doc.text('(LKR)', xPos + colWidths.unitCost / 2, yPosition + 8, { align: 'center' });
+        doc.setFontSize(10);
+        xPos += colWidths.unitCost;
+        doc.line(xPos, yPosition, xPos, yPosition + headerHeight);
+        doc.text('TOTAL COST', xPos + colWidths.totalCost / 2, yPosition + 4, { align: 'center' });
+        doc.setFontSize(9);
+        doc.text('(LKR)', xPos + colWidths.totalCost / 2, yPosition + 8, { align: 'center' });
+        
+        yPosition += headerHeight;
+        doc.setFont('helvetica', 'normal');
+      }
+      
+      const rowStartY = yPosition;
+      
+      // Draw row borders
+      doc.setDrawColor(200, 200, 200);
+      doc.rect(tableStartX, yPosition, tableWidth, rowHeight);
+      
+      xPos = tableStartX;
+      
+      // NO. column
+      doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
-      doc.text(`Total: Rs. ${formatNumberWithCommas(itemTotal)}`, 20, yPosition + 23);
+      doc.text(`${itemNumber}.0`, xPos + colWidths.no / 2, yPosition + 8, { align: 'center' });
+      doc.line(xPos + colWidths.no, yPosition, xPos + colWidths.no, yPosition + rowHeight);
+      xPos += colWidths.no;
+      
+      // ITEM column
+      doc.setFont('helvetica', 'normal');
+      const itemContentX = xPos + 3;
+      let itemTextY = yPosition + 5;
+      
+      // Item name
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      const itemNameLines = doc.splitTextToSize(item.name, colWidths.item - 6);
+      itemNameLines.forEach((line, idx) => {
+        doc.text(line, itemContentX, itemTextY + (idx * 5));
+      });
+      itemTextY += itemNameLines.length * 5 + 1;
+      
+      // Item ID
+      if (item.itemId) {
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`ID: ${item.itemId}`, itemContentX, itemTextY);
+        itemTextY += 4;
+      }
+      
+      // Item specifications/description
+      doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       
-      yPosition += 32;
-      
-      // Extra description if provided
       if (item.extraDescription && item.extraDescription.trim()) {
-        checkNewPage(15);
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'italic');
-        doc.text('Description:', 15, yPosition);
-        yPosition += 5;
-        
-        // Split long descriptions into multiple lines
-        const descLines = doc.splitTextToSize(item.extraDescription, pageWidth - 35);
-        for (const line of descLines) {
-          checkNewPage(5);
-          doc.text(line, 20, yPosition);
-          yPosition += 4;
-        }
-        yPosition += 3;
-        doc.setFont('helvetica', 'normal');
+        const descLines = doc.splitTextToSize(item.extraDescription, colWidths.item - 6);
+        descLines.forEach((line, idx) => {
+          doc.text(line, itemContentX, itemTextY + (idx * 3.5));
+        });
+        itemTextY += descLines.length * 3.5 + 2;
       }
       
-      // Display images if available
+      // Add image below text if available (only first image)
       if (item.images && item.images.length > 0) {
-        checkNewPage(50);
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Product Images:', 15, yPosition);
-        yPosition += 5;
-        doc.setFont('helvetica', 'normal');
-        
-        const imageSize = 35;
-        const imagesPerRow = 4;
-        let imageX = 15;
-        let imageCount = 0;
-        
-        for (const image of item.images) {
-          if (imageCount > 0 && imageCount % imagesPerRow === 0) {
-            yPosition += imageSize + 5;
-            imageX = 15;
-            checkNewPage(imageSize + 10);
-          }
-          
-          try {
-            doc.addImage(image.data, 'JPEG', imageX, yPosition, imageSize, imageSize);
-            imageX += imageSize + 5;
-            imageCount++;
-          } catch (err) {
-            console.warn('Error adding image:', err);
-          }
+        try {
+          doc.addImage(item.images[0].data, 'JPEG', itemContentX, itemTextY, imageSize, imageSize);
+        } catch (err) {
+          console.warn('Error adding image:', err);
         }
-        
-        yPosition += imageSize + 10;
       }
       
-      // Add spacing between items
-      yPosition += 5;
+      doc.line(xPos + colWidths.item, yPosition, xPos + colWidths.item, yPosition + rowHeight);
+      xPos += colWidths.item;
+      
+      // QTY column
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${item.quantity} NOS`, xPos + colWidths.qty / 2, yPosition + rowHeight / 2, { align: 'center' });
+      doc.line(xPos + colWidths.qty, yPosition, xPos + colWidths.qty, yPosition + rowHeight);
+      xPos += colWidths.qty;
+      
+      // UNIT COST column
+      doc.text(formatNumberWithCommas(item.unitPrice), xPos + colWidths.unitCost / 2, yPosition + rowHeight / 2, { align: 'center' });
+      doc.line(xPos + colWidths.unitCost, yPosition, xPos + colWidths.unitCost, yPosition + rowHeight);
+      xPos += colWidths.unitCost;
+      
+      // TOTAL COST column
+      doc.text(formatNumberWithCommas(itemTotal), xPos + colWidths.totalCost / 2, yPosition + rowHeight / 2, { align: 'center' });
+      
+      yPosition += rowHeight;
       itemNumber++;
     }
+    
+    // Close table
+    doc.setDrawColor(0, 0, 0);
+    doc.line(tableStartX, yPosition, tableStartX + tableWidth, yPosition);
+    yPosition += 10;
     
     // Extra charges section
     if (quotationData.extras && quotationData.extras.length > 0) {
@@ -373,7 +477,7 @@ export const generateQuotationPDF = async (quotationData) => {
     yPosition += 15;
     
     // Terms and conditions
-    checkNewPage(50);
+    checkNewPage(80);
     
     doc.setFont('helvetica', 'bold');
     doc.text('TERMS & CONDITIONS:', 15, yPosition);
@@ -381,17 +485,39 @@ export const generateQuotationPDF = async (quotationData) => {
     yPosition += 6;
     
     doc.setFontSize(9);
-    doc.text('• This quotation is valid for 3 days from the date of issue.', 15, yPosition);
+    doc.text('• Your confirmation required by purchase order. Payment cheque must be ready to collect same day', 15, yPosition);
+    yPosition += 4;
+    doc.text('  after trial.', 15, yPosition);
     yPosition += 5;
-    doc.text('• Prices are subject to change without notice.', 15, yPosition);
+    
+    doc.text('• This quotation will only valid for one weeks.', 15, yPosition);
     yPosition += 5;
-    doc.text('• Payment terms: 100% by cash on delivery or by cheque drawn to', 15, yPosition);
+    
+    doc.text('• 50% Advance payment should be placed when placing the order.', 15, yPosition);
     yPosition += 5;
-    doc.text('  "P.E.INDUSTRIAL AUTOMATION (PVT).LTD"', 15, yPosition);
+    
+    doc.text('• The advance payments that paid to confirm orders are non-refundable under any circumstance.', 15, yPosition);
+    yPosition += 4;
+    doc.text('  If required any further arrangements, should contact us in advance prior to shipping.', 15, yPosition);
     yPosition += 5;
-    doc.text('• Warranty period as specified per item from invoice date.', 15, yPosition);
+    
+    doc.text('• These prices above are at the present dollar rate, and it will stay the same after you confirmed', 15, yPosition);
+    yPosition += 4;
+    doc.text('  the order. But by the time when we are delivering the order, if the VAT/dollar increments or', 15, yPosition);
+    yPosition += 4;
+    doc.text('  additional taxes has imposed, those rates will be added to total cost of this quotation accordingly.', 15, yPosition);
     yPosition += 5;
-    doc.text('• Delivery time will be confirmed upon order confirmation.', 15, yPosition);
+    
+    doc.text('• Delivery time - 45-60 days after confirming the order.', 15, yPosition);
+    yPosition += 5;
+    
+    doc.text('• Please be kind enough to release the bid documents to our representative at the following details.', 15, yPosition);
+    yPosition += 6;
+    
+    doc.setFont('helvetica', 'bold');
+    doc.text('PAYMENT TERMS:', 15, yPosition);
+    doc.setFont('helvetica', 'normal');
+    doc.text(' Full payment should be paid on delivery in cash.', 45, yPosition);
     yPosition += 15;
     
     // Bank details
@@ -414,9 +540,7 @@ export const generateQuotationPDF = async (quotationData) => {
     // Closing
     checkNewPage(25);
     doc.setFontSize(10);
-    doc.text('Thank you for your interest in our products.', 15, yPosition);
-    yPosition += 5;
-    doc.text('We look forward to serving you.', 15, yPosition);
+    doc.text('Thank you for your interest in our products. We look forward to serving you.', 15, yPosition);
     yPosition += 10;
     doc.text('Yours Faithfully,', 15, yPosition);
     yPosition += 5;
