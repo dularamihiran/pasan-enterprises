@@ -267,16 +267,20 @@ const SellItem = () => {
 
   // Calculate base price (price without VAT) for a cart item
   const getItemBasePriceWithoutVAT = (item) => {
-    // Base price = Total Price - (VAT% × Total Price)
-    // Base price = Total Price × (1 - VAT%)
-    const vatAmount = (item.vatPercentage / 100) * item.unitPrice;
-    return item.unitPrice - vatAmount;
+    // The unitPrice already includes VAT
+    // Base price = unitPrice / (1 + VAT% / 100)
+    // Example: if unitPrice = 100,000 and VAT = 18%
+    // Base price = 100,000 / 1.18 = 84,745.76
+    return item.unitPrice / (1 + item.vatPercentage / 100);
   };
 
   // Calculate VAT amount for a specific cart item
   const getItemVATAmount = (item) => {
-    // VAT = (VAT% / 100) × Unit Price × Quantity
-    return (item.vatPercentage / 100) * item.unitPrice * item.quantity;
+    // First get the base price (without VAT)
+    const basePrice = getItemBasePriceWithoutVAT(item);
+    // VAT = base price × VAT% × quantity
+    // Example: 84,745.76 × 0.18 × 1 = 15,254.24
+    return basePrice * (item.vatPercentage / 100) * item.quantity;
   };
 
   // Calculate total with VAT for a specific cart item (this is just unitPrice * quantity)
