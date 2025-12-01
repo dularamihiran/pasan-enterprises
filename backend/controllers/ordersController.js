@@ -569,25 +569,32 @@ const returnItem = async (req, res) => {
     // Calculate the price per unit (including VAT)
     const pricePerUnit = returnedItem.unitPrice; // This already includes VAT
     
-    // Calculate the total refund amount for returned quantity
-    const returnAmount = pricePerUnit * returnQuantity;
+    // Calculate the total refund amount for returned quantity (before discount)
+    const returnAmountBeforeDiscount = pricePerUnit * returnQuantity;
+    
+    // Apply order discount if present
+    const orderDiscountPercentage = order.discountPercentage || 0;
+    const discountMultiplier = 1 - (orderDiscountPercentage / 100);
+    const returnAmount = returnAmountBeforeDiscount * discountMultiplier;
     
     // Calculate VAT amount per unit
     const vatAmountPerUnit = (returnedItem.vatPercentage / 100) * pricePerUnit;
     const basePricePerUnit = pricePerUnit - vatAmountPerUnit;
     
-    // Calculate refund breakdown
-    const refundBaseAmount = basePricePerUnit * returnQuantity;
-    const refundVatAmount = vatAmountPerUnit * returnQuantity;
+    // Calculate refund breakdown (after discount)
+    const refundBaseAmount = (basePricePerUnit * returnQuantity) * discountMultiplier;
+    const refundVatAmount = (vatAmountPerUnit * returnQuantity) * discountMultiplier;
     
     console.log(`💰 Refund Calculation:`);
     console.log(`   Unit Price (with VAT): ${pricePerUnit}`);
     console.log(`   Base Price per unit: ${basePricePerUnit.toFixed(2)}`);
     console.log(`   VAT per unit: ${vatAmountPerUnit.toFixed(2)}`);
     console.log(`   Return Quantity: ${returnQuantity}`);
-    console.log(`   Refund Base Amount: ${refundBaseAmount.toFixed(2)}`);
-    console.log(`   Refund VAT Amount: ${refundVatAmount.toFixed(2)}`);
-    console.log(`   Total Return Amount: ${returnAmount.toFixed(2)}`);
+    console.log(`   Order Discount: ${orderDiscountPercentage}%`);
+    console.log(`   Return Amount Before Discount: ${returnAmountBeforeDiscount.toFixed(2)}`);
+    console.log(`   Refund Base Amount (after discount): ${refundBaseAmount.toFixed(2)}`);
+    console.log(`   Refund VAT Amount (after discount): ${refundVatAmount.toFixed(2)}`);
+    console.log(`   Total Return Amount (after discount): ${returnAmount.toFixed(2)}`);
 
     // Store old final total for logging
     const oldFinalTotal = order.finalTotal;
