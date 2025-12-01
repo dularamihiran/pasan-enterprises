@@ -163,8 +163,9 @@ const PastOrders = () => {
         const vatPct = toNumber(item.vatPercentage) ? toNumber(item.vatPercentage) / 100 : vatRate;
         
         // Calculate machine price (excluding VAT)
+        // Correct formula: base price = unitPrice / (1 + VAT%)
         machinePricePerUnit = unitPriceInclVAT / (1 + vatPct);
-        vatPerUnit = unitPriceInclVAT - machinePricePerUnit;
+        vatPerUnit = machinePricePerUnit * vatPct;
         
         console.log(`💡 Using unitPrice for ${item.name}:`);
         console.log(`   unitPrice (incl VAT): ${unitPriceInclVAT}`);
@@ -1095,11 +1096,19 @@ const PastOrders = () => {
                                   </div>
                                   <div className="flex justify-between">
                                     <span>Machine Price ({item.quantity}x):</span>
-                                    <span>{formatCurrency(item.subtotal)}</span>
+                                    <span>{formatCurrency((() => {
+                                      const vatPct = (item.vatPercentage || 0) / 100;
+                                      const basePrice = item.unitPrice / (1 + vatPct);
+                                      return basePrice * item.quantity;
+                                    })())}</span>
                                   </div>
                                   <div className="flex justify-between text-blue-600">
                                     <span>VAT ({item.vatPercentage || 0}%):</span>
-                                    <span>{formatCurrency(item.vatAmount || 0)}</span>
+                                    <span>{formatCurrency((() => {
+                                      const vatPct = (item.vatPercentage || 0) / 100;
+                                      const basePrice = item.unitPrice / (1 + vatPct);
+                                      return basePrice * vatPct * item.quantity;
+                                    })())}</span>
                                   </div>
                                   {item.warrantyMonths !== undefined && (() => {
                                     const warrantyInfo = getWarrantyInfo(order.createdAt, item.warrantyMonths);
@@ -1498,11 +1507,19 @@ const PastOrders = () => {
                         </div>
                         <div>
                           <p className="text-slate-500">Machine Price ({item.quantity}x):</p>
-                          <p className="font-medium">{formatCurrency(item.subtotal)}</p>
+                          <p className="font-medium">{formatCurrency((() => {
+                            const vatPct = (item.vatPercentage || 0) / 100;
+                            const basePrice = item.unitPrice / (1 + vatPct);
+                            return basePrice * item.quantity;
+                          })())}</p>
                         </div>
                         <div>
                           <p className="text-blue-600">VAT ({item.vatPercentage || 0}%):</p>
-                          <p className="font-medium text-blue-600">{formatCurrency(item.vatAmount || 0)}</p>
+                          <p className="font-medium text-blue-600">{formatCurrency((() => {
+                            const vatPct = (item.vatPercentage || 0) / 100;
+                            const basePrice = item.unitPrice / (1 + vatPct);
+                            return basePrice * vatPct * item.quantity;
+                          })())}</p>
                         </div>
                         {item.warrantyMonths !== undefined && (() => {
                           const warrantyInfo = getWarrantyInfo(selectedOrder.createdAt, item.warrantyMonths);

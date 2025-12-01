@@ -177,7 +177,7 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
     doc.setFont('helvetica', 'normal');
     
     const currentDate = new Date();
-    const invoiceDate = currentDate.toLocaleDateString();
+    const invoiceDate = `${currentDate.getDate().toString().padStart(2, '0')}/${(currentDate.getMonth() + 1).toString().padStart(2, '0')}/${currentDate.getFullYear()}`;
     const invoiceTime = currentDate.toLocaleTimeString();
     
     doc.text(`Buyer: ${saleData.customerInfo.name}`, 15, yPosition);

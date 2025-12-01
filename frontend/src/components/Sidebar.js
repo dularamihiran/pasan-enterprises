@@ -8,7 +8,8 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ChartBarIcon,
-  BanknotesIcon
+  BanknotesIcon,
+  DocumentTextIcon
 } from '@heroicons/react/24/outline';
 import authService from '../services/authService';
 
@@ -47,6 +48,12 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, activeTab, setActiveTab }) => {
         name: 'Sell Item',
         icon: ShoppingCartIcon,
         gradient: 'from-purple-500 to-purple-600',
+      },
+      {
+        id: 'quotation',
+        name: 'Quotation',
+        icon: DocumentTextIcon,
+        gradient: 'from-indigo-500 to-indigo-600',
       },
       {
         id: 'past-orders',

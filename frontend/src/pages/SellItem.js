@@ -8,11 +8,10 @@ import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
   XMarkIcon,
-  ReceiptPercentIcon,
-  DocumentArrowDownIcon
+  ReceiptPercentIcon
 } from '@heroicons/react/24/outline';
 import { machineAPI, salesAPI, customerAPI, handleApiError } from '../services/apiService';
-import { generateInvoice, generateQuotation } from '../services/invoiceService';
+import { generateInvoice } from '../services/invoiceService';
 
 const SellItem = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -268,16 +267,20 @@ const SellItem = () => {
 
   // Calculate base price (price without VAT) for a cart item
   const getItemBasePriceWithoutVAT = (item) => {
-    // Base price = Total Price - (VAT% × Total Price)
-    // Base price = Total Price × (1 - VAT%)
-    const vatAmount = (item.vatPercentage / 100) * item.unitPrice;
-    return item.unitPrice - vatAmount;
+    // The unitPrice already includes VAT
+    // Base price = unitPrice / (1 + VAT% / 100)
+    // Example: if unitPrice = 100,000 and VAT = 18%
+    // Base price = 100,000 / 1.18 = 84,745.76
+    return item.unitPrice / (1 + item.vatPercentage / 100);
   };
 
   // Calculate VAT amount for a specific cart item
   const getItemVATAmount = (item) => {
-    // VAT = (VAT% / 100) × Unit Price × Quantity
-    return (item.vatPercentage / 100) * item.unitPrice * item.quantity;
+    // First get the base price (without VAT)
+    const basePrice = getItemBasePriceWithoutVAT(item);
+    // VAT = base price × VAT% × quantity
+    // Example: 84,745.76 × 0.18 × 1 = 15,254.24
+    return basePrice * (item.vatPercentage / 100) * item.quantity;
   };
 
   // Calculate total with VAT for a specific cart item (this is just unitPrice * quantity)
@@ -330,73 +333,6 @@ const SellItem = () => {
   const getFinalTotal = () => {
     return getTotalBeforeDiscount() - getDiscountAmount() + getExtrasTotal();
   };
-
-  // Function to generate quotation (formerly invoice preview)
-  const handleGenerateQuotation = async () => {
-    if (cart.length === 0) {
-      setError('Please add items to cart before generating quotation.');
-      setTimeout(() => setError(''), 3000);
-      return;
-    }
-
-    if (!customerInfo.name?.trim()) {
-      setError('Customer name is required for quotation.');
-      setTimeout(() => setError(''), 3000);
-      return;
-    }
-
-    try {
-      const mockOrderData = {
-        orderId: 'QUOTE-' + Date.now(),
-        date: new Date().toISOString()
-      };
-
-      const quotationData = {
-        customerInfo: {
-          name: customerInfo.name.trim() || 'Sample Customer',
-          phone: customerInfo.phone.trim() || '0771234567',
-          email: customerInfo.email?.trim() || '',
-          nic: customerInfo.nic?.trim() || '',
-          address: customerInfo.address?.trim() || ''
-        },
-        items: cart.map(item => ({
-          machineId: item.machineId,
-          name: item.name,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          vatPercentage: item.vatPercentage,
-          vatAmount: getItemVATAmount(item),
-          warrantyMonths: item.warrantyMonths,
-          totalWithVAT: getItemTotalWithVAT(item)
-        })),
-        cart: cart,
-        extras: extras.filter(extra => extra.description && extra.amount > 0),
-        subtotal: getSubtotal(),
-        vatRate: vatRate,
-        vatAmount: getVATAmount(),
-        discountPercentage: discountPercentage,
-        discountAmount: getDiscountAmount(),
-        finalTotal: getFinalTotal()
-      };
-
-      const quotationResult = await generateQuotation(quotationData, mockOrderData);
-      if (quotationResult.success) {
-        setSuccessMessage(`Quotation generated successfully! Downloaded as ${quotationResult.filename}`);
-      } else {
-        setError(`Quotation generation failed: ${quotationResult.message}`);
-      }
-    } catch (error) {
-      console.error('Quotation generation error:', error);
-      setError('Failed to generate quotation');
-    }
-
-    setTimeout(() => {
-      setError('');
-      setSuccessMessage('');
-    }, 5000);
-  };
-
-
 
   const validateSale = async () => {
     try {
@@ -490,7 +426,7 @@ const SellItem = () => {
       // Validate payment inputs
       let paidToSend = Number(paidAmount) || 0;
       if (paymentType === 'partial') {
-        if (paidToSend <= 0) {
+        if (paidToSend < 0) {
           setError('Paid amount must be greater than 0 for partial payments.');
           setProcessing(false);
           return;
@@ -1150,19 +1086,8 @@ const SellItem = () => {
 
         </div>
 
-        {/* Process Sale Button */}
-        <div className="flex justify-center gap-4">
-          {/* Generate Quotation Button */}
-          <button
-            onClick={handleGenerateQuotation}
-            disabled={cart.length === 0}
-            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-medium hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-lg"
-          >
-            <DocumentArrowDownIcon className="w-5 h-5 mr-2" />
-            Generate Quotation
-          </button>
-
-          {/* Complete Sale Button */}
+        {/* Complete Sale Button */}
+        <div className="flex justify-center">
           <button
             onClick={handleSale}
             disabled={cart.length === 0 || processing}
@@ -1176,7 +1101,6 @@ const SellItem = () => {
             ) : (
               <>
                 <CreditCardIcon className="w-6 h-6 mr-2" />
-                <DocumentArrowDownIcon className="w-5 h-5 mr-1" />
                 Complete Sale & Generate Invoice - Rs. {getFinalTotal().toFixed(2)}
               </>
             )}

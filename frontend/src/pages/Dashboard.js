@@ -350,7 +350,7 @@ const Dashboard = () => {
               Best Selling
             </h2>
           </div>
-          <p className="text-sm text-slate-600 mb-4">Top 3 machines</p>
+          <p className="text-sm text-slate-600 mb-4">Top 6 machines</p>
 
           {/* Best Selling Machines List - Fixed height with scroll */}
           <div className="flex-1 overflow-y-auto" style={{ maxHeight: '400px' }}>
