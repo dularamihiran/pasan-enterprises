@@ -183,7 +183,7 @@ const Quotation = () => {
       unitPrice: machine.price,
       vatPercentage: 18,
       warrantyMonths: 12,
-      extraDescription: '',
+      extraDescription: machine.description || '',
       images: []
     };
 
