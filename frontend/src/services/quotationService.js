@@ -188,7 +188,6 @@ export const generateQuotationPDF = async (quotationData) => {
     }
     
     doc.text(`Date: ${quotationDate}`, 15, yPosition);
-    doc.text(`Time: ${quotationTime}`, pageWidth - 15, yPosition, { align: 'right' });
     yPosition += 15;
     
     // Items section - Table format
@@ -310,7 +309,7 @@ export const generateQuotationPDF = async (quotationData) => {
       const rowStartY = yPosition;
       
       // Draw row borders
-      doc.setDrawColor(200, 200, 200);
+      doc.setDrawColor(0, 0, 0);
       doc.rect(tableStartX, yPosition, tableWidth, rowHeight);
       
       xPos = tableStartX;
