@@ -181,7 +181,7 @@ export const generateQuotationPDF = async (quotationData) => {
     
     // Add customer address if exists
     if (quotationData.customerInfo.address && quotationData.customerInfo.address.trim()) {
-      doc.setFontSize(9);
+      doc.setFontSize(10);
       doc.text(`Address: ${quotationData.customerInfo.address}`, 15, yPosition);
       yPosition += 6;
       doc.setFontSize(10);
@@ -535,21 +535,21 @@ export const generateQuotationPDF = async (quotationData) => {
     yPosition += 15;
     
     // Bank details
-    checkNewPage(30);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.text('BANK DETAILS', 15, yPosition);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    yPosition += 6;
-    doc.text('BANK NAME - BOC BANK (KESBEWA BRANCH)', 15, yPosition);
-    yPosition += 5;
-    doc.text('ACCOUNT NAME - P.E. INDUSTRIAL AUTOMATION (PVT). LTD', 15, yPosition);
-    yPosition += 5;
-    doc.text('ACCOUNT NUMBER - 0094292544', 15, yPosition);
-    yPosition += 5;
-    doc.text('BRANCH CODE - 620', 15, yPosition);
-    yPosition += 15;
+    // checkNewPage(30);
+    // doc.setFont('helvetica', 'bold');
+    // doc.setFontSize(10);
+    // doc.text('BANK DETAILS', 15, yPosition);
+    // doc.setFont('helvetica', 'normal');
+    // doc.setFontSize(9);
+    // yPosition += 6;
+    // doc.text('BANK NAME - BOC BANK (KESBEWA BRANCH)', 15, yPosition);
+    // yPosition += 5;
+    // doc.text('ACCOUNT NAME - P.E. INDUSTRIAL AUTOMATION (PVT). LTD', 15, yPosition);
+    // yPosition += 5;
+    // doc.text('ACCOUNT NUMBER - 0094292544', 15, yPosition);
+    // yPosition += 5;
+    // doc.text('BRANCH CODE - 620', 15, yPosition);
+    // yPosition += 15;
     
     // Closing
     checkNewPage(25);
