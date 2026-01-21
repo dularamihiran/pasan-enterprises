@@ -181,14 +181,13 @@ export const generateQuotationPDF = async (quotationData) => {
     
     // Add customer address if exists
     if (quotationData.customerInfo.address && quotationData.customerInfo.address.trim()) {
-      doc.setFontSize(9);
+      doc.setFontSize(10);
       doc.text(`Address: ${quotationData.customerInfo.address}`, 15, yPosition);
       yPosition += 6;
       doc.setFontSize(10);
     }
     
     doc.text(`Date: ${quotationDate}`, 15, yPosition);
-    doc.text(`Time: ${quotationTime}`, pageWidth - 15, yPosition, { align: 'right' });
     yPosition += 15;
     
     // Items section - Table format
@@ -197,43 +196,54 @@ export const generateQuotationPDF = async (quotationData) => {
     // Table configuration
     const tableStartX = 15;
     const tableWidth = pageWidth - 30;
+
+    // Make other column widths fixed, and compute last column to fill remaining space
     const colWidths = {
       no: 10,
       item: 75,
       qty: 20,
       unitCost: 35,
-      totalCost: 55
+      totalCost: null // compute below
     };
-    
-    // Draw table header
-    doc.setDrawColor(0, 0, 0);
-    doc.setFillColor(255, 255, 255);
-    
+
+    // Compute totalCost so all columns exactly fill tableWidth
+    const usedWidth = colWidths.no + colWidths.item + colWidths.qty + colWidths.unitCost;
+    colWidths.totalCost = tableWidth - usedWidth;
+
+    // safety: if computed width is negative or too small, clamp to some min
+    if (colWidths.totalCost < 30) {
+      // adjust item column to make room if needed
+      colWidths.item = Math.max(40, colWidths.item - (30 - colWidths.totalCost));
+      colWidths.totalCost = tableWidth - (colWidths.no + colWidths.item + colWidths.qty + colWidths.unitCost);
+    }
+
     let xPos = tableStartX;
     const headerHeight = 10;
-    
+
     // Header background
+    doc.setDrawColor(0,0,0);
+    doc.setFillColor(255,255,255);
     doc.rect(tableStartX, yPosition, tableWidth, headerHeight, 'FD');
-    
+
     // Header text
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
-    
+
     // NO. column
     doc.text('NO.', xPos + colWidths.no / 2, yPosition + 6, { align: 'center' });
     xPos += colWidths.no;
     doc.line(xPos, yPosition, xPos, yPosition + headerHeight);
-    
+
     // ITEM column
     doc.text('ITEM', xPos + colWidths.item / 2, yPosition + 6, { align: 'center' });
     xPos += colWidths.item;
     doc.line(xPos, yPosition, xPos, yPosition + headerHeight);
-    
+
     // QTY column
     doc.text('QTY', xPos + colWidths.qty / 2, yPosition + 6, { align: 'center' });
     xPos += colWidths.qty;
     doc.line(xPos, yPosition, xPos, yPosition + headerHeight);
-    
+
     // UNIT COST column
     doc.text('UNIT COST', xPos + colWidths.unitCost / 2, yPosition + 4, { align: 'center' });
     doc.setFontSize(9);
@@ -241,13 +251,17 @@ export const generateQuotationPDF = async (quotationData) => {
     doc.setFontSize(10);
     xPos += colWidths.unitCost;
     doc.line(xPos, yPosition, xPos, yPosition + headerHeight);
-    
-    // TOTAL COST column
+
+    // TOTAL COST column (computed width)
     doc.text('TOTAL COST', xPos + colWidths.totalCost / 2, yPosition + 4, { align: 'center' });
     doc.setFontSize(9);
     doc.text('(LKR)', xPos + colWidths.totalCost / 2, yPosition + 8, { align: 'center' });
-    
+
+    // draw the rightmost border of the table explicitly (important)
+    doc.line(tableStartX + tableWidth, yPosition, tableStartX + tableWidth, yPosition + headerHeight);
+
     yPosition += headerHeight;
+
     
     // Draw table rows
     doc.setFont('helvetica', 'normal');
@@ -278,7 +292,7 @@ export const generateQuotationPDF = async (quotationData) => {
         
         // Redraw table header on new page
         doc.setDrawColor(0, 0, 0);
-        doc.setFillColor(240, 240, 240);
+        doc.setFillColor(250, 250, 250);
         doc.rect(tableStartX, yPosition, tableWidth, headerHeight, 'FD');
         
         xPos = tableStartX;
@@ -310,7 +324,7 @@ export const generateQuotationPDF = async (quotationData) => {
       const rowStartY = yPosition;
       
       // Draw row borders
-      doc.setDrawColor(200, 200, 200);
+      doc.setDrawColor(0, 0, 0);
       doc.rect(tableStartX, yPosition, tableWidth, rowHeight);
       
       xPos = tableStartX;
@@ -521,21 +535,21 @@ export const generateQuotationPDF = async (quotationData) => {
     yPosition += 15;
     
     // Bank details
-    checkNewPage(30);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.text('BANK DETAILS', 15, yPosition);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    yPosition += 6;
-    doc.text('BANK NAME - BOC BANK (KESBEWA BRANCH)', 15, yPosition);
-    yPosition += 5;
-    doc.text('ACCOUNT NAME - P.E. INDUSTRIAL AUTOMATION (PVT). LTD', 15, yPosition);
-    yPosition += 5;
-    doc.text('ACCOUNT NUMBER - 0094292544', 15, yPosition);
-    yPosition += 5;
-    doc.text('BRANCH CODE - 620', 15, yPosition);
-    yPosition += 15;
+    // checkNewPage(30);
+    // doc.setFont('helvetica', 'bold');
+    // doc.setFontSize(10);
+    // doc.text('BANK DETAILS', 15, yPosition);
+    // doc.setFont('helvetica', 'normal');
+    // doc.setFontSize(9);
+    // yPosition += 6;
+    // doc.text('BANK NAME - BOC BANK (KESBEWA BRANCH)', 15, yPosition);
+    // yPosition += 5;
+    // doc.text('ACCOUNT NAME - P.E. INDUSTRIAL AUTOMATION (PVT). LTD', 15, yPosition);
+    // yPosition += 5;
+    // doc.text('ACCOUNT NUMBER - 0094292544', 15, yPosition);
+    // yPosition += 5;
+    // doc.text('BRANCH CODE - 620', 15, yPosition);
+    // yPosition += 15;
     
     // Closing
     checkNewPage(25);

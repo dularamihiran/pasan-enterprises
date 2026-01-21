@@ -100,7 +100,7 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
     
     // Determine document type
     const isQuotation = options.isQuotation || false;
-    const documentTitle = isQuotation ? 'QUOTATION' : 'INVOICE';
+    const documentTitle = isQuotation ? 'QUOTATION' : 'TAX INVOICE';
     
     // Load logo
     let logoBase64 = null;
@@ -185,14 +185,19 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
     doc.text(`${documentNumberLabel} ${orderData.orderId}`, pageWidth - 15, yPosition, { align: 'right' });
     yPosition += 6;
     
+    
     // Add customer address below buyer name if address exists
     if (saleData.customerInfo.address && saleData.customerInfo.address.trim()) {
-      doc.setFontSize(9);
+      doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.text(`Address: ${saleData.customerInfo.address}`, 15, yPosition);
-      yPosition += 6;
+      //yPosition += 6;
       doc.setFontSize(10); // Reset font size
     }
+
+    // Add VAT number below invoice number
+    doc.text('VAT NO: 179781190-7000', pageWidth - 15, yPosition, { align: 'right' });
+    yPosition += 12;
     
     doc.text(`Date: ${invoiceDate}`, 15, yPosition);
     doc.text(`Time: ${invoiceTime}`, pageWidth - 15, yPosition, { align: 'right' });
@@ -458,7 +463,7 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
     const uniqueWarranties = [...new Set(warranties)];
     
     if (uniqueWarranties.length === 1) {
-      doc.text(`${uniqueWarranties[0]} MONTHS FROM INVOICE DATE FOR ALL ITEMS`, 15, yPosition);
+      doc.text(`${uniqueWarranties[0]} MONTHS FROM INVOICE DATE`, 15, yPosition);
     } else {
       doc.text('VARIABLE WARRANTY PERIODS AS SPECIFIED PER ITEM:', 15, yPosition);
       yPosition += 5;
@@ -473,19 +478,19 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
     yPosition += 10;
     
     // Bank details
-    checkNewPage(30);
-    doc.setFont('helvetica', 'bold');
-    doc.text('BANK DETAILS', 15, yPosition);
-    doc.setFont('helvetica', 'normal');
-    yPosition += 6;
-    doc.text('BANK NAME - BOC BANK (KESBEWA BRANCH)', 15, yPosition);
-    yPosition += 5;
-    doc.text('ACCOUNT NAME - P.E. INDUSTRIAL AUTOMATION (PVT). LTD', 15, yPosition);
-    yPosition += 5;
-    doc.text('ACCOUNT NUMBER - 0094292544', 15, yPosition);
-    yPosition += 5;
-    doc.text('BRANCH CODE - 620', 15, yPosition);
-    yPosition += 15;
+    //checkNewPage(30);
+    //doc.setFont('helvetica', 'bold');
+    //doc.text('BANK DETAILS', 15, yPosition);
+    //doc.setFont('helvetica', 'normal');
+    //yPosition += 6;
+    //doc.text('BANK NAME - BOC BANK (KESBEWA BRANCH)', 15, yPosition);
+    //yPosition += 5;
+    //doc.text('ACCOUNT NAME - P.E. INDUSTRIAL AUTOMATION (PVT). LTD', 15, yPosition);
+    //yPosition += 5;
+    //doc.text('ACCOUNT NUMBER - 0094292544', 15, yPosition);
+    //yPosition += 5;
+    //doc.text('BRANCH CODE - 620', 15, yPosition);
+    //yPosition += 15;
     
     // Thank you and signature
     checkNewPage(25);
