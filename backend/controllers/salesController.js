@@ -20,7 +20,7 @@ const processSale = async (req, res) => {
       notes = '',
       processedBy = 'System',
       vatRate = 15,
-      discountPercentage = 0,
+      discountAmount = 0,
       paymentType = 'full',
       paidAmount = 0,
       paymentPeriodDays = 60
@@ -105,7 +105,8 @@ const processSale = async (req, res) => {
         // Store per-unit values for accurate calculations after returns
         machine_price_per_unit: basePricePerUnit,
         vat_per_unit: vatAmountPerUnit,
-        original_quantity: item.quantity
+        original_quantity: item.quantity,
+        note: item.note || '' // Machine note/description
       });
 
       // Update machine stock
@@ -141,11 +142,11 @@ const processSale = async (req, res) => {
     // Calculate total before discount (subtotal + VAT)
     const totalBeforeDiscount = subtotal + totalVatAmount;
     
-    // Calculate discount amount
-    const discountAmount = (totalBeforeDiscount * discountPercentage) / 100;
+    // Use discount amount directly, cap it to not exceed totalBeforeDiscount
+    const finalDiscountAmount = Math.min(parseFloat(discountAmount) || 0, totalBeforeDiscount);
     
     // Calculate final total
-    const finalTotal = totalBeforeDiscount - discountAmount + extrasTotal;
+    const finalTotal = totalBeforeDiscount - finalDiscountAmount + extrasTotal;
     
     const total = subtotal + extrasTotal; // Keep for backward compatibility
 
@@ -173,8 +174,7 @@ const processSale = async (req, res) => {
       vatRate: vatRate, // Keep for reference (not used in calculation anymore)
       vatAmount: totalVatAmount,
       totalBeforeDiscount,
-      discountPercentage,
-      discountAmount,
+      discountAmount: finalDiscountAmount,
       extrasTotal,
       total,
       finalTotal,
@@ -217,8 +217,7 @@ const processSale = async (req, res) => {
           vatRate, // Keep for reference
           vatAmount: totalVatAmount,
           totalBeforeDiscount,
-          discountPercentage,
-          discountAmount,
+          discountAmount: finalDiscountAmount,
           extrasTotal,
           total,
           finalTotal,

@@ -85,6 +85,13 @@ const orderItemSchema = new mongoose.Schema({
   original_quantity: {
     type: Number,
     min: [1, 'Original quantity must be at least 1']
+  },
+  // Machine note/description (optional)
+  note: {
+    type: String,
+    trim: true,
+    maxlength: [500, 'Note cannot exceed 500 characters'],
+    default: ''
   }
 }, { _id: false }); // Don't create separate _id for sub-documents
 
@@ -171,12 +178,6 @@ const pastOrderSchema = new mongoose.Schema({
     type: Number,
     default: 0,
     min: 0
-  },
-  discountPercentage: {
-    type: Number,
-    default: 0,
-    min: 0,
-    max: 100
   },
   discountAmount: {
     type: Number,
@@ -336,8 +337,9 @@ pastOrderSchema.pre('save', function(next) {
   // STEP 1: Calculate original total before discount
   const originalTotalBeforeDiscount = originalSubtotal + originalVatAmount;
   
-  // STEP 2: Calculate discount amount (ALWAYS from original total - FIXED)
-  const discountAmount = (originalTotalBeforeDiscount * this.discountPercentage) / 100;
+  // STEP 2: Use the discount amount directly (no percentage calculation)
+  // Cap discount to not exceed the original total before discount
+  const discountAmount = Math.min(this.discountAmount || 0, originalTotalBeforeDiscount);
   this.discountAmount = discountAmount;
   
   // Calculate extras total
@@ -365,7 +367,7 @@ pastOrderSchema.pre('save', function(next) {
   console.log(`   Original Subtotal: ${originalSubtotal.toFixed(2)}`);
   console.log(`   Original VAT: ${originalVatAmount.toFixed(2)}`);
   console.log(`   Original Total Before Discount: ${originalTotalBeforeDiscount.toFixed(2)}`);
-  console.log(`   Discount (${this.discountPercentage}%): -${discountAmount.toFixed(2)}`);
+  console.log(`   Discount Amount: -Rs. ${discountAmount.toFixed(2)}`);
   console.log(`   Extras: +${this.extrasTotal.toFixed(2)}`);
   console.log(`   Final Total Before Return: ${finalTotalBeforeReturn.toFixed(2)}`);
   console.log(`   ================================`);
@@ -376,7 +378,7 @@ pastOrderSchema.pre('save', function(next) {
   console.log(`   Current Subtotal: ${this.subtotal.toFixed(2)}`);
   console.log(`   Current VAT: ${this.vatAmount.toFixed(2)}`);
   console.log(`   Current Total Before Discount: ${this.totalBeforeDiscount.toFixed(2)}`);
-  console.log(`   Discount (FIXED): -${this.discountAmount.toFixed(2)}`);
+  console.log(`   Discount Amount: -Rs. ${this.discountAmount.toFixed(2)}`);
   console.log(`   Extras: +${this.extrasTotal.toFixed(2)}`);
   console.log(`   ================================`);
   console.log(`   ✅ FINAL TOTAL: ${this.finalTotal.toFixed(2)}`);

@@ -41,7 +41,7 @@ const Quotation = () => {
   const [totalMachines, setTotalMachines] = useState(0);
   const itemsPerPage = 5;
 
-  const [discountPercentage, setDiscountPercentage] = useState(0);
+  const [discountAmount, setDiscountAmount] = useState(0);
 
   const fetchMachines = useCallback(async (page = currentPage, category = selectedCategory, search = searchTerm) => {
     try {
@@ -288,7 +288,10 @@ const Quotation = () => {
   };
 
   const getDiscountAmount = () => {
-    return (getTotalBeforeDiscount() * discountPercentage) / 100;
+    // Cap discount to not exceed totalBeforeDiscount
+    const totalBefore = getTotalBeforeDiscount();
+    const requestedDiscount = parseFloat(discountAmount) || 0;
+    return Math.min(requestedDiscount, totalBefore);
   };
 
   const getExtrasTotal = () => {
@@ -327,7 +330,6 @@ const Quotation = () => {
         customerInfo,
         subtotal: getSubtotal(),
         vatAmount: getVATAmount(),
-        discountPercentage,
         discountAmount: getDiscountAmount(),
         finalTotal: getFinalTotal()
       };
@@ -348,7 +350,7 @@ const Quotation = () => {
             nic: '',
             address: ''
           });
-          setDiscountPercentage(0);
+          setDiscountAmount(0);
           setSuccessMessage('');
         }, 2000);
       } else {
@@ -763,17 +765,28 @@ const Quotation = () => {
         <div className="bg-white/60 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-200/50 p-6">
           <h3 className="text-lg font-bold text-slate-800 mb-4">Discount</h3>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Discount (%)</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Discount Amount (Rs.)</label>
             <input
               type="number"
               min="0"
-              max="100"
-              step="0.1"
-              value={discountPercentage}
-              onChange={(e) => setDiscountPercentage(parseFloat(e.target.value) || 0)}
+              step="0.01"
+              value={discountAmount}
+              onChange={(e) => {
+                const value = parseFloat(e.target.value) || 0;
+                setDiscountAmount(Math.max(0, value));
+              }}
+              onBlur={() => {
+                const totalBefore = getTotalBeforeDiscount();
+                if (discountAmount > totalBefore) {
+                  setDiscountAmount(totalBefore);
+                }
+              }}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white/50 text-sm"
-              placeholder="Enter discount percentage"
+              placeholder="Enter discount amount in Rs."
             />
+            {discountAmount > getTotalBeforeDiscount() && (
+              <p className="text-xs text-amber-600 mt-1">⚠️ Discount will be capped to total (Rs. {getTotalBeforeDiscount().toFixed(2)})</p>
+            )}
           </div>
         </div>
       </div>
@@ -795,9 +808,9 @@ const Quotation = () => {
               <span>Total Before Discount:</span>
               <span>Rs. {getTotalBeforeDiscount().toFixed(2)}</span>
             </div>
-            {discountPercentage > 0 && (
+            {getDiscountAmount() > 0 && (
               <div className="flex justify-between text-sm text-green-600">
-                <span>Discount ({discountPercentage}%):</span>
+                <span>Discount Amount:</span>
                 <span>-Rs. {getDiscountAmount().toFixed(2)}</span>
               </div>
             )}

@@ -458,7 +458,7 @@ export const generateQuotationPDF = async (quotationData) => {
     
     // Discount
     if (quotationData.discountAmount > 0) {
-      doc.text(`Discount (${quotationData.discountPercentage}%):`, 15, yPosition);
+      doc.text('Discount Amount:', 15, yPosition);
       doc.text(`-Rs. ${formatNumberWithCommas(quotationData.discountAmount)}`, pageWidth - 15, yPosition, { align: 'right' });
       yPosition += 6;
     }

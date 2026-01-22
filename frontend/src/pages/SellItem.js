@@ -44,11 +44,13 @@ const SellItem = () => {
   
   // VAT is now handled per-item in cart, this is kept for reference only
   const vatRate = 15; // Default reference VAT rate
-  const [discountPercentage, setDiscountPercentage] = useState(0);
+  const [discountAmount, setDiscountAmount] = useState(0);
   // Payment fields
   const [paymentType, setPaymentType] = useState('full');
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentPeriodDays, setPaymentPeriodDays] = useState(60);
+  // Customer VAT Number (UI only - not stored in database)
+  const [customerVatNumber, setCustomerVatNumber] = useState('');
 
   const fetchMachines = useCallback(async (page = currentPage, category = selectedCategory, search = searchTerm) => {
     try {
@@ -208,7 +210,8 @@ const SellItem = () => {
         quantity: 1,
         vatPercentage: 18, // Default 18% VAT per item
         warrantyMonths: 12, // Default 12 months warranty
-        availableStock: machine.quantity
+        availableStock: machine.quantity,
+        note: machine.description || '' // Use machine's existing description as note
       }]);
     }
   };
@@ -323,7 +326,10 @@ const SellItem = () => {
   };
 
   const getDiscountAmount = () => {
-    return (getTotalBeforeDiscount() * discountPercentage) / 100;
+    // Cap discount to not exceed totalBeforeDiscount
+    const totalBefore = getTotalBeforeDiscount();
+    const requestedDiscount = parseFloat(discountAmount) || 0;
+    return Math.min(requestedDiscount, totalBefore);
   };
 
   const getExtrasTotal = () => {
@@ -457,7 +463,7 @@ const SellItem = () => {
         })),
         extras: extras.filter(extra => extra.description && extra.amount > 0),
         vatRate: vatRate, // Keep for reference
-        discountPercentage: discountPercentage,
+        discountAmount: getDiscountAmount(),
         notes: '',
         processedBy: 'Admin',
         // Payment metadata
@@ -478,6 +484,7 @@ const SellItem = () => {
         try {
           const invoiceData = {
             customerInfo: saleData.customerInfo,
+            customerVatNumber: customerVatNumber, // UI only - not stored in database
             items: cart.map(item => ({
               machineId: item.machineId,
               name: item.name,
@@ -486,16 +493,20 @@ const SellItem = () => {
               vatPercentage: item.vatPercentage,
               vatAmount: getItemVATAmount(item),
               warrantyMonths: item.warrantyMonths,
-              totalWithVAT: getItemTotalWithVAT(item)
+              totalWithVAT: getItemTotalWithVAT(item),
+              note: item.note || '' // Include machine note for invoice
             })),
             cart: cart, // Include full cart data for invoice generation
             extras: extras.filter(extra => extra.description && extra.amount > 0),
             subtotal: getSubtotal(),
             vatRate: vatRate,
             vatAmount: getVATAmount(),
-            discountPercentage: discountPercentage,
             discountAmount: getDiscountAmount(),
-            finalTotal: getFinalTotal()
+            finalTotal: getFinalTotal(),
+            // Payment details
+            paymentType: paymentType,
+            paidAmount: paymentType === 'partial' ? paidToSend : getFinalTotal(),
+            remainingAmount: paymentType === 'partial' ? Math.round((finalTotal - paidToSend) * 100) / 100 : 0
           };
 
           const invoiceResult = await generateInvoice(invoiceData, orderData);
@@ -515,8 +526,14 @@ const SellItem = () => {
         setCustomerInfo({ name: '', email: '', phone: '', nic: '', address: '' });
         setCustomerSearchResults([]);
         setShowCustomerDropdown(false);
+        setCustomerVatNumber(''); // Reset customer VAT number
 
-        setDiscountPercentage(0);
+        setDiscountAmount(0);
+        
+        // Reset payment fields to default
+        setPaymentType('full');
+        setPaidAmount(0);
+        setPaymentPeriodDays(60);
         
         // Refresh machines to get updated stock
         await fetchMachines();
@@ -813,6 +830,14 @@ const SellItem = () => {
                             />
                           </div>
                         </div>
+                        
+                        {/* Display machine description/note (read-only) */}
+                        {item.note && item.note.trim() !== "" && (
+                          <div className="mt-2 pt-2 border-t border-slate-200">
+                            <label className="block text-xs font-medium text-slate-700 mb-1">Machine Description:</label>
+                            <p className="text-xs text-slate-600 italic bg-slate-50 p-2 rounded">{item.note}</p>
+                          </div>
+                        )}
                       </div>
                     ))}
                     
@@ -831,9 +856,9 @@ const SellItem = () => {
                           <span>Total Before Discount:</span>
                           <span>Rs. {getTotalBeforeDiscount().toFixed(2)}</span>
                         </div>
-                        {discountPercentage > 0 && (
+                        {getDiscountAmount() > 0 && (
                           <div className="flex justify-between text-sm text-green-600">
-                            <span>Discount ({discountPercentage}%):</span>
+                            <span>Discount Amount:</span>
                             <span>-Rs. {getDiscountAmount().toFixed(2)}</span>
                           </div>
                         )}
@@ -863,17 +888,30 @@ const SellItem = () => {
               </h3>
               
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Discount (%)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Discount Amount (Rs.)</label>
                 <input
                   type="number"
                   min="0"
-                  max="100"
-                  step="0.1"
-                  value={discountPercentage}
-                  onChange={(e) => setDiscountPercentage(parseFloat(e.target.value) || 0)}
+                  step="0.01"
+                  value={discountAmount}
+                  onChange={(e) => {
+                    const value = parseFloat(e.target.value) || 0;
+                    // Allow user to input any value, but it will be capped in calculations
+                    setDiscountAmount(Math.max(0, value));
+                  }}
+                  onBlur={() => {
+                    // On blur, cap the discount to totalBeforeDiscount if it exceeds
+                    const totalBefore = getTotalBeforeDiscount();
+                    if (discountAmount > totalBefore) {
+                      setDiscountAmount(totalBefore);
+                    }
+                  }}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50 text-sm"
-                  placeholder="Enter discount percentage"
+                  placeholder="Enter discount amount in Rs."
                 />
+                {discountAmount > getTotalBeforeDiscount() && (
+                  <p className="text-xs text-amber-600 mt-1">⚠️ Discount will be capped to total (Rs. {getTotalBeforeDiscount().toFixed(2)})</p>
+                )}
               </div>
             </div>
 
@@ -1023,6 +1061,17 @@ const SellItem = () => {
               placeholder="Enter email address"
               value={customerInfo.email}
               onChange={(e) => setCustomerInfo({...customerInfo, email: e.target.value})}
+              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Customer VAT Number (Optional)</label>
+            <input
+              type="text"
+              placeholder="e.g., VAT123456789"
+              value={customerVatNumber}
+              onChange={(e) => setCustomerVatNumber(e.target.value)}
               className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50"
             />
           </div>

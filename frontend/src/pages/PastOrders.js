@@ -114,11 +114,20 @@ const PastOrders = () => {
 
     const vatRate = ('vat_rate' in order) ? toNumber(order.vat_rate) : (toNumber(order.vatPercentage) ? toNumber(order.vatPercentage) / 100 : (toNumber(order.vatRate) || 0.18));
     
-    // Get discount rate
-    let discountRate = 0;
-    if ('discount_rate' in order) discountRate = toNumber(order.discount_rate);
-    else if ('discountPercentage' in order) discountRate = toNumber(order.discountPercentage) / 100;
-    else if ('discountRate' in order) discountRate = toNumber(order.discountRate);
+    // Get discount amount directly (new approach) or calculate from percentage (legacy support)
+    let discountAmount = 0;
+    if ('discountAmount' in order) {
+      // New approach: direct discount amount
+      discountAmount = toNumber(order.discountAmount);
+    } else {
+      // Legacy support: calculate from percentage
+      let discountRate = 0;
+      if ('discount_rate' in order) discountRate = toNumber(order.discount_rate);
+      else if ('discountPercentage' in order) discountRate = toNumber(order.discountPercentage) / 100;
+      else if ('discountRate' in order) discountRate = toNumber(order.discountRate);
+      // Will calculate discountAmount later from originalTotalBeforeDiscount
+      discountAmount = -1; // Flag to calculate later
+    }
 
     let currentSubtotal = 0;   // Current subtotal (after returns)
     let currentVatAmount = 0;  // Current VAT (after returns)
@@ -226,8 +235,17 @@ const PastOrders = () => {
     // STEP 1: Calculate original total before discount
     const originalTotalBeforeDiscount = originalSubtotal + originalVatAmount;
 
-    // STEP 2: Calculate discount amount (ALWAYS from original total)
-    const discountAmount = Math.round(originalTotalBeforeDiscount * discountRate);
+    // STEP 2: Calculate discount amount
+    // If discountAmount was -1 (legacy), calculate from discountRate
+    if (discountAmount === -1) {
+      let discountRate = 0;
+      if ('discount_rate' in order) discountRate = toNumber(order.discount_rate);
+      else if ('discountPercentage' in order) discountRate = toNumber(order.discountPercentage) / 100;
+      else if ('discountRate' in order) discountRate = toNumber(order.discountRate);
+      discountAmount = Math.round(originalTotalBeforeDiscount * discountRate);
+    }
+    // Ensure discount doesn't exceed original total
+    discountAmount = Math.min(discountAmount, originalTotalBeforeDiscount);
 
     // STEP 3: Calculate final total BEFORE returns
     const finalTotalBeforeReturn = originalTotalBeforeDiscount - discountAmount + extrasTotal;
@@ -243,7 +261,7 @@ const PastOrders = () => {
       console.log(`   Original Subtotal: ${originalSubtotal}`);
       console.log(`   Original VAT: ${originalVatAmount}`);
       console.log(`   Original Total Before Discount: ${originalTotalBeforeDiscount}`);
-      console.log(`   Discount Rate: ${discountRate * 100}%`);
+      console.log(`   Discount Amount: Rs. ${discountAmount}`);
       console.log(`   Discount Amount (from ORIGINAL): ${discountAmount}`);
       console.log(`   Final Before Return: ${finalTotalBeforeReturn}`);
       console.log(`   Returned Value: ${returnedValue}`);
@@ -1143,6 +1161,14 @@ const PastOrders = () => {
                                       </>
                                     );
                                   })()}
+                                  
+                                  {/* Machine Note Display */}
+                                  {item.note && item.note.trim() !== "" && (
+                                    <div className="mt-2 pt-2 border-t border-slate-300">
+                                      <div className="text-slate-700 font-medium">Note:</div>
+                                      <div className="text-slate-600 italic ml-2 mt-1">{item.note}</div>
+                                    </div>
+                                  )}
                                 </div>
                                 
                                 {/* Return Item Button */}
@@ -1236,9 +1262,9 @@ const PastOrders = () => {
                                       <span>Total Before Discount:</span>
                                       <span>{formatCurrency(t.totalBeforeDiscount || (t.subtotal + (t.vatAmount || 0)))}</span>
                                     </div>
-                                    {order.discountPercentage > 0 && (
+                                    {(order.discountAmount > 0 || order.discountPercentage > 0) && (
                                       <div className="flex justify-between text-sm text-green-600">
-                                        <span>Discount ({order.discountPercentage}%):</span>
+                                        <span>Discount Amount:</span>
                                         <span>-{formatCurrency(t.discountAmount || 0)}</span>
                                       </div>
                                     )}
@@ -1521,6 +1547,15 @@ const PastOrders = () => {
                             return basePrice * vatPct * item.quantity;
                           })())}</p>
                         </div>
+                        
+                        {/* Machine Note Display */}
+                        {item.note && item.note.trim() !== "" && (
+                          <div className="col-span-2 border-t border-slate-200 pt-2 mt-2">
+                            <p className="text-slate-700 font-medium mb-1">Note:</p>
+                            <p className="text-slate-600 italic text-sm ml-3">{item.note}</p>
+                          </div>
+                        )}
+                        
                         {item.warrantyMonths !== undefined && (() => {
                           const warrantyInfo = getWarrantyInfo(selectedOrder.createdAt, item.warrantyMonths);
                           return (
@@ -1650,9 +1685,9 @@ const PastOrders = () => {
                                 <span>Total Before Discount:</span>
                                 <span>{formatCurrency(t.totalBeforeDiscount || (t.subtotal + (t.vatAmount || 0)))}</span>
                               </div>
-                              {selectedOrder.discountPercentage > 0 && (
+                              {(selectedOrder.discountAmount > 0 || selectedOrder.discountPercentage > 0) && (
                                 <div className="flex justify-between text-sm text-green-600">
-                                  <span>Discount ({selectedOrder.discountPercentage}%):</span>
+                                  <span>Discount Amount:</span>
                                   <span>-{formatCurrency(t.discountAmount || 0)}</span>
                                 </div>
                               )}
