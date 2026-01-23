@@ -572,25 +572,28 @@ const returnItem = async (req, res) => {
     // Calculate the total refund amount for returned quantity (before discount)
     const returnAmountBeforeDiscount = pricePerUnit * returnQuantity;
     
-    // Apply order discount if present
-    const orderDiscountPercentage = order.discountPercentage || 0;
-    const discountMultiplier = 1 - (orderDiscountPercentage / 100);
-    const returnAmount = returnAmountBeforeDiscount * discountMultiplier;
+    // Apply order discount if present - use direct discount amount
+    // Calculate what percentage of the order this return represents
+    const orderOriginalTotal = order.totalBeforeDiscount || (order.subtotal + order.vatAmount);
+    const orderDiscountAmount = order.discountAmount || 0;
+    const returnDiscountPortion = orderOriginalTotal > 0 ? (returnAmountBeforeDiscount / orderOriginalTotal) * orderDiscountAmount : 0;
+    const returnAmount = returnAmountBeforeDiscount - returnDiscountPortion;
     
     // Calculate VAT amount per unit
     const vatAmountPerUnit = (returnedItem.vatPercentage / 100) * pricePerUnit;
     const basePricePerUnit = pricePerUnit - vatAmountPerUnit;
     
     // Calculate refund breakdown (after discount)
-    const refundBaseAmount = (basePricePerUnit * returnQuantity) * discountMultiplier;
-    const refundVatAmount = (vatAmountPerUnit * returnQuantity) * discountMultiplier;
+    const refundBaseAmount = (basePricePerUnit * returnQuantity) - (returnDiscountPortion * (basePricePerUnit / pricePerUnit));
+    const refundVatAmount = (vatAmountPerUnit * returnQuantity) - (returnDiscountPortion * (vatAmountPerUnit / pricePerUnit));
     
     console.log(`💰 Refund Calculation:`);
     console.log(`   Unit Price (with VAT): ${pricePerUnit}`);
     console.log(`   Base Price per unit: ${basePricePerUnit.toFixed(2)}`);
     console.log(`   VAT per unit: ${vatAmountPerUnit.toFixed(2)}`);
     console.log(`   Return Quantity: ${returnQuantity}`);
-    console.log(`   Order Discount: ${orderDiscountPercentage}%`);
+    console.log(`   Order Discount Amount: Rs. ${orderDiscountAmount.toFixed(2)}`);
+    console.log(`   Return Discount Portion: Rs. ${returnDiscountPortion.toFixed(2)}`);
     console.log(`   Return Amount Before Discount: ${returnAmountBeforeDiscount.toFixed(2)}`);
     console.log(`   Refund Base Amount (after discount): ${refundBaseAmount.toFixed(2)}`);
     console.log(`   Refund VAT Amount (after discount): ${refundVatAmount.toFixed(2)}`);
@@ -877,8 +880,8 @@ const updateOrder = async (req, res) => {
     }
 
     // Update discount if provided
-    if (updateData.discountPercentage !== undefined) {
-      order.discountPercentage = updateData.discountPercentage;
+    if (updateData.discountAmount !== undefined) {
+      order.discountAmount = updateData.discountAmount;
     }
 
     // Update status fields if provided

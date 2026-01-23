@@ -141,12 +141,6 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
       doc.text('Piliyandala, Sri Lanka.', pageWidth - 15, 27, { align: 'right' });
       doc.text('+94717694334', pageWidth - 15, 32, { align: 'right' });
       doc.text('+94763995483', pageWidth - 15, 37, { align: 'right' });
-      
-      // Page number (if not first page)
-      if (currentPage > 1) {
-        doc.setFontSize(8);
-        doc.text(`Page ${currentPage}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
-      }
     };
     
     // Function to check if we need a new page
@@ -185,19 +179,31 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
     doc.text(`${documentNumberLabel} ${orderData.orderId}`, pageWidth - 15, yPosition, { align: 'right' });
     yPosition += 6;
     
+    // Add phone number
+    if (saleData.customerInfo.phone) {
+      doc.text(`Phone: ${saleData.customerInfo.phone}`, 15, yPosition);
+    }
+    
+    // Add Company VAT number (right side)
+    doc.text('Company VAT NO: 179781190-7000', pageWidth - 15, yPosition, { align: 'right' });
+    yPosition += 6;
+    
+    // Add customer VAT number if provided (right side, below company VAT)
+    if (saleData.customerVatNumber && saleData.customerVatNumber.trim()) {
+      doc.text(`Customer VAT No: ${saleData.customerVatNumber}`, pageWidth - 15, yPosition, { align: 'right' });
+      yPosition += 6;
+    }
     
     // Add customer address below buyer name if address exists
     if (saleData.customerInfo.address && saleData.customerInfo.address.trim()) {
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.text(`Address: ${saleData.customerInfo.address}`, 15, yPosition);
-      //yPosition += 6;
       doc.setFontSize(10); // Reset font size
+      yPosition += 6;
     }
-
-    // Add VAT number below invoice number
-    doc.text('VAT NO: 179781190-7000', pageWidth - 15, yPosition, { align: 'right' });
-    yPosition += 12;
+    
+    yPosition += 6;
     
     doc.text(`Date: ${invoiceDate}`, 15, yPosition);
     doc.text(`Time: ${invoiceTime}`, pageWidth - 15, yPosition, { align: 'right' });
@@ -281,7 +287,27 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
       doc.text(warrantyMonths.toString() + 'M', colPositions[5] + 15, yPosition, { align: 'right' });
       doc.text(formatNumberWithCommas(itemTotal), colPositions[6] + 20, yPosition, { align: 'right' });
       
-      yPosition += 8;
+      yPosition += 5;
+      
+      // Display machine note if it exists
+      const machineNote = cartItem.note || item.note || '';
+      if (machineNote.trim()) {
+        checkNewPage(8);
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(7);
+        const noteText = `Note: ${machineNote}`;
+        // Wrap note text with proper margins (from Description column to right margin)
+        const maxNoteWidth = (pageWidth - 15) - colPositions[1]; // Width from Description column to right edge
+        const noteLines = doc.splitTextToSize(noteText, maxNoteWidth);
+        noteLines.forEach((line) => {
+          doc.text(line, colPositions[1], yPosition);
+          yPosition += 4;
+        });
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+      }
+      
+      yPosition += 3;
       itemNumber++;
     });
     
@@ -402,7 +428,7 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
     
     // Discount (if applicable)
     if (discountAmount > 0) {
-      doc.text(`Discount (${saleData.discountPercentage || 0}%):`, 15, yPosition);
+      doc.text('Discount Amount:', 15, yPosition);
       doc.text(`-Rs. ${formatNumberWithCommas(discountAmount)}`, pageWidth - 15, yPosition, { align: 'right' });
       yPosition += 6;
     }
@@ -425,7 +451,28 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
     doc.setFontSize(14);
     doc.text('FINAL TOTAL:', 15, yPosition);
     doc.text(`Rs. ${formatNumberWithCommas(finalTotal)}`, pageWidth - 15, yPosition, { align: 'right' });
-    yPosition += 15;
+    yPosition += 10;
+    
+    // Payment details (if partial payment)
+    if (saleData.paymentType === 'partial' || (saleData.paidAmount && saleData.paidAmount < finalTotal)) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      
+      checkNewPage(15);
+      
+      // Paid amount
+      doc.text('Paid Amount:', 15, yPosition);
+      doc.text(`Rs. ${formatNumberWithCommas(saleData.paidAmount || 0)}`, pageWidth - 15, yPosition, { align: 'right' });
+      yPosition += 6;
+      
+      // Remaining amount
+      doc.setFont('helvetica', 'bold');
+      doc.text('Remaining Amount:', 15, yPosition);
+      doc.text(`Rs. ${formatNumberWithCommas(saleData.remainingAmount || 0)}`, pageWidth - 15, yPosition, { align: 'right' });
+      yPosition += 10;
+    }
+    
+    yPosition += 5;
     
     // Amount in words
     checkNewPage(10);
