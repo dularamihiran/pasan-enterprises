@@ -179,20 +179,22 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
     doc.text(`${documentNumberLabel} ${orderData.orderId}`, pageWidth - 15, yPosition, { align: 'right' });
     yPosition += 6;
     
+
+    // Add customer VAT number if provided (left side, below Buyer name)
+    if (saleData.customerVatNumber && saleData.customerVatNumber.trim()) {
+      doc.text(`Customer VAT No: ${saleData.customerVatNumber}`, 15, yPosition);
+    }
+
+    // Add Company VAT number (right side)
+    doc.text('Company VAT NO: 179781190-7000', pageWidth - 15, yPosition, { align: 'right' });
+    yPosition += 6;
+
     // Add phone number
     if (saleData.customerInfo.phone) {
       doc.text(`Phone: ${saleData.customerInfo.phone}`, 15, yPosition);
     }
-    
-    // Add Company VAT number (right side)
-    doc.text('Company VAT NO: 179781190-7000', pageWidth - 15, yPosition, { align: 'right' });
     yPosition += 6;
     
-    // Add customer VAT number if provided (right side, below company VAT)
-    if (saleData.customerVatNumber && saleData.customerVatNumber.trim()) {
-      doc.text(`Customer VAT No: ${saleData.customerVatNumber}`, pageWidth - 15, yPosition, { align: 'right' });
-      yPosition += 6;
-    }
     
     // Add customer address below buyer name if address exists
     if (saleData.customerInfo.address && saleData.customerInfo.address.trim()) {
