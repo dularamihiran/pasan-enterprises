@@ -13,8 +13,10 @@ import {
   EyeIcon,
   ChevronDownIcon,
   ChevronUpIcon,
+  ArrowDownTrayIcon,
 } from '@heroicons/react/24/outline';
 import { pastOrdersAPI, handleApiError } from '../services/apiService';
+import { generateInvoice } from '../services/invoiceService';
 
 const PastOrders = () => {
   // Helper function to format dates as DD/MM/YYYY
@@ -61,6 +63,15 @@ const PastOrders = () => {
     } else {
       return { text: `${remainingDays} days remaining`, color: 'text-green-600 bg-green-50' };
     }
+  };
+
+  // Helper function to format currency
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-LK', {
+      style: 'currency',
+      currency: 'LKR',
+      minimumFractionDigits: 0,
+    }).format(amount);
   };
 
   // Helper function to calculate payment status and detect refunds
@@ -589,6 +600,53 @@ const PastOrders = () => {
     }
   };
 
+  // Download invoice for a past order
+  const handleDownloadInvoice = async (order) => {
+    try {
+      // Prepare sale data from order information
+      const totals = calculateOrderTotals(order);
+      
+      const saleData = {
+        customerInfo: order.customerInfo,
+        customerVatNumber: order.customerVatNumber || '',
+        items: order.items.map(item => ({
+          machineId: item.machineId,
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          vatPercentage: item.vatPercentage || 0,
+          warrantyMonths: item.warrantyMonths || 12,
+          note: item.note || ''
+        })),
+        cart: order.items, // Include cart for compatibility
+        extras: order.extras || [],
+        subtotal: totals.subtotal,
+        vatAmount: totals.vatAmount,
+        discountAmount: totals.discountAmount || 0,
+        finalTotal: totals.finalTotal,
+        paymentType: order.paymentType || (order.paymentStatus === 'Paid' || order.paymentStatus === 'full' ? 'full' : 'partial'),
+        paidAmount: order.paidAmount || 0,
+        remainingAmount: order.remainingAmount || 0
+      };
+      
+      const orderData = {
+        orderId: order.orderId
+      };
+      
+      // Generate and download the invoice
+      const result = await generateInvoice(saleData, orderData);
+      
+      if (result.success) {
+        console.log('Invoice downloaded successfully:', result.filename);
+      } else {
+        alert('Failed to generate invoice: ' + (result.message || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error downloading invoice:', error);
+      alert('Error downloading invoice. Please try again.');
+    }
+  };
+
   // Handle search and filter changes
   const handleSearchChange = (value) => {
     setSearchTerm(value);
@@ -611,14 +669,6 @@ const PastOrders = () => {
   // Pagination calculations for display
   const startIndex = (currentPage - 1) * ordersPerPage;
   const endIndex = Math.min(startIndex + ordersPerPage, totalOrders);
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-LK', {
-      style: 'currency',
-      currency: 'LKR',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
 
   // Format order ID to show number and date separately
   const formatOrderId = (orderId) => {
@@ -1038,6 +1088,13 @@ const PastOrders = () => {
                           title="View Details"
                         >
                           <EyeIcon className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDownloadInvoice(order)}
+                          className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-all duration-200"
+                          title="Download Invoice"
+                        >
+                          <ArrowDownTrayIcon className="w-4 h-4" />
                         </button>
                         {(order.paymentStatus === 'Partial' || order.paymentStatus === 'Pending') && (
                           <button
