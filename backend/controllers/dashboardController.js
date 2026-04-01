@@ -311,50 +311,80 @@ const getMonthlyGraph = async (req, res) => {
   }
 };
 
-// @desc    Get top 6 best selling machines for 2025
+// @desc    Get top 6 best selling machines (all-time, net of returns)
 // @route   GET /api/dashboard/best-selling-machines
 // @access  Public
 const getBestSellingMachines = async (req, res) => {
   try {
-    const year = 2025;
-    const startOfYear = new Date(year, 0, 1); // January 1, 2025
-    const endOfYear = new Date(year, 11, 31, 23, 59, 59); // December 31, 2025
-
-    // Aggregate orders to find best selling machines
+    // Aggregate all valid orders to find best-selling machines.
+    // Net sold units = ordered quantity - returned quantity.
     const bestSellingMachines = await PastOrder.aggregate([
-      // Match orders from 2025
       {
         $match: {
-          createdAt: {
-            $gte: startOfYear,
-            $lte: endOfYear
-          }
+          orderStatus: { $ne: 'Cancelled' }
         }
       },
-      // Unwind the items array to work with individual items
       {
         $unwind: '$items'
       },
-      // Group by machine and calculate totals
+      {
+        $addFields: {
+          itemQuantity: { $ifNull: ['$items.quantity', 0] },
+          itemReturnedQuantity: {
+            $ifNull: [
+              '$items.returnedQuantity',
+              { $ifNull: ['$items.returned_quantity', 0] }
+            ]
+          }
+        }
+      },
+      {
+        $addFields: {
+          netQuantitySold: {
+            $max: [
+              { $subtract: ['$itemQuantity', '$itemReturnedQuantity'] },
+              0
+            ]
+          },
+          unitRevenue: {
+            $ifNull: [
+              '$items.unitPrice',
+              {
+                $ifNull: [
+                  { $add: ['$items.machine_price_per_unit', '$items.vat_per_unit'] },
+                  0
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        $match: {
+          netQuantitySold: { $gt: 0 }
+        }
+      },
       {
         $group: {
           _id: '$items.machineId',
           machineName: { $first: '$items.name' },
           category: { $first: '$items.category' },
-          totalQuantitySold: { $sum: '$items.quantity' },
-          totalRevenue: { $sum: '$items.totalWithVAT' },
+          itemId: { $first: '$items.itemId' },
+          totalQuantitySold: { $sum: '$netQuantitySold' },
+          totalRevenue: {
+            $sum: {
+              $multiply: ['$unitRevenue', '$netQuantitySold']
+            }
+          },
           orderCount: { $sum: 1 }
         }
       },
-      // Sort by total quantity sold (descending)
       {
-        $sort: { totalQuantitySold: -1 }
+        $sort: { totalQuantitySold: -1, totalRevenue: -1 }
       },
-      // Limit to top 6
       {
         $limit: 6
       },
-      // Lookup machine details
       {
         $lookup: {
           from: 'machines',
@@ -363,22 +393,22 @@ const getBestSellingMachines = async (req, res) => {
           as: 'machineDetails'
         }
       },
-      // Add current stock information
       {
         $addFields: {
           currentStock: { $arrayElemAt: ['$machineDetails.quantity', 0] },
-          itemId: { $arrayElemAt: ['$machineDetails.itemId', 0] }
+          machineItemId: { $arrayElemAt: ['$machineDetails.itemId', 0] }
         }
       },
-      // Format the final result
       {
         $project: {
           _id: 1,
           machineName: 1,
           category: 1,
-          itemId: 1,
+          itemId: {
+            $ifNull: ['$machineItemId', '$itemId']
+          },
           totalQuantitySold: 1,
-          totalRevenue: 1,
+          totalRevenue: { $round: ['$totalRevenue', 2] },
           orderCount: 1,
           currentStock: { $ifNull: ['$currentStock', 0] }
         }
@@ -387,8 +417,7 @@ const getBestSellingMachines = async (req, res) => {
 
     res.json({
       success: true,
-      data: bestSellingMachines,
-      year: year
+      data: bestSellingMachines
     });
 
   } catch (error) {
