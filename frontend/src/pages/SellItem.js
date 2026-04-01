@@ -49,6 +49,8 @@ const SellItem = () => {
   const [paymentType, setPaymentType] = useState('full');
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentPeriodDays, setPaymentPeriodDays] = useState(60);
+    const [paymentMethod, setPaymentMethod] = useState('cash');
+    const [chequeNumber, setChequeNumber] = useState('');
   // Customer VAT Number (UI only - not stored in database)
   const [customerVatNumber, setCustomerVatNumber] = useState('');
 
@@ -268,6 +270,15 @@ const SellItem = () => {
     ));
   };
 
+  // Update description/note for individual cart item
+  const updateCartItemNote = (machineId, note) => {
+    setCart(cart.map(item =>
+      item.machineId === machineId
+        ? { ...item, note }
+        : item
+    ));
+  };
+
   // Calculate base price (price without VAT) for a cart item
   const getItemBasePriceWithoutVAT = (item) => {
     // The unitPrice already includes VAT
@@ -447,6 +458,12 @@ const SellItem = () => {
         paidToSend = finalTotal;
       }
 
+      if (paymentMethod === 'cheque' && !chequeNumber.trim()) {
+        setError('Cheque number is required when payment method is cheque.');
+        setProcessing(false);
+        return;
+      }
+
       const saleData = {
         customerInfo: {
           name: customerInfo.name.trim(),
@@ -470,7 +487,9 @@ const SellItem = () => {
         paymentType: paymentType,
         paidAmount: Math.round(paidToSend * 100) / 100,
         paymentPeriodDays: paymentType === 'partial' ? (Number(paymentPeriodDays) || 60) : 0,
-        remainingAmount: Math.round((finalTotal - paidToSend) * 100) / 100
+        remainingAmount: Math.round((finalTotal - paidToSend) * 100) / 100,
+        paymentMethod,
+        chequeNumber: paymentMethod === 'cheque' ? chequeNumber.trim() : ''
       };
 
       console.log('Processing sale with data:', saleData);
@@ -505,6 +524,8 @@ const SellItem = () => {
             finalTotal: getFinalTotal(),
             // Payment details
             paymentType: paymentType,
+            paymentMethod,
+            chequeNumber: paymentMethod === 'cheque' ? chequeNumber.trim() : '',
             paidAmount: paymentType === 'partial' ? paidToSend : getFinalTotal(),
             remainingAmount: paymentType === 'partial' ? Math.round((finalTotal - paidToSend) * 100) / 100 : 0
           };
@@ -534,6 +555,8 @@ const SellItem = () => {
         setPaymentType('full');
         setPaidAmount(0);
         setPaymentPeriodDays(60);
+        setPaymentMethod('cash');
+        setChequeNumber('');
         
         // Refresh machines to get updated stock
         await fetchMachines();
@@ -831,13 +854,18 @@ const SellItem = () => {
                           </div>
                         </div>
                         
-                        {/* Display machine description/note (read-only) */}
-                        {item.note && item.note.trim() !== "" && (
-                          <div className="mt-2 pt-2 border-t border-slate-200">
-                            <label className="block text-xs font-medium text-slate-700 mb-1">Machine Description:</label>
-                            <p className="text-xs text-slate-600 italic bg-slate-50 p-2 rounded">{item.note}</p>
-                          </div>
-                        )}
+                        {/* Editable machine description/note */}
+                        <div className="mt-2 pt-2 border-t border-slate-200">
+                          <label className="block text-xs font-medium text-slate-700 mb-1">Machine Description:</label>
+                          <textarea
+                            value={item.note || ''}
+                            onChange={(e) => updateCartItemNote(item.machineId, e.target.value)}
+                            rows="2"
+                            maxLength={1200}
+                            placeholder="Add or edit machine description"
+                            className="w-full px-2 py-1 text-xs text-slate-700 border border-slate-300 rounded bg-white/70 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
                       </div>
                     ))}
                     
@@ -1130,6 +1158,32 @@ const SellItem = () => {
                 <div>Remaining Amount:</div>
                 <div className="font-semibold">Rs. {(getFinalTotal() - (paidAmount || 0)).toFixed(2)}</div>
               </div>
+            </div>
+          )}
+
+          <div className="md:col-span-1">
+            <label className="block text-sm font-medium text-slate-700 mb-2">Payment Method</label>
+            <select
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white/50"
+            >
+              <option value="cash">Cash</option>
+              <option value="bank transfer">Bank Transfer</option>
+              <option value="cheque">Cheque</option>
+            </select>
+          </div>
+
+          {paymentMethod === 'cheque' && (
+            <div className="md:col-span-1">
+              <label className="block text-sm font-medium text-slate-700 mb-2">Cheque Number</label>
+              <input
+                type="text"
+                value={chequeNumber}
+                onChange={(e) => setChequeNumber(e.target.value)}
+                placeholder="Enter cheque number"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white/50"
+              />
             </div>
           )}
 

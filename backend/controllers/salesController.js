@@ -23,7 +23,9 @@ const processSale = async (req, res) => {
       discountAmount = 0,
       paymentType = 'full',
       paidAmount = 0,
-      paymentPeriodDays = 60
+      paymentPeriodDays = 60,
+      paymentMethod = 'cash',
+      chequeNumber = ''
     } = req.body;
 
     // Validate required fields
@@ -46,6 +48,22 @@ const processSale = async (req, res) => {
     let subtotal = 0;
 
     console.log(`\n🛒 PROCESSING SALE WITH ${items.length} ITEMS:`);
+      // Validate payment method and cheque number
+      const validPaymentMethods = ['cash', 'bank transfer', 'cheque'];
+      if (!validPaymentMethods.includes(paymentMethod)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid payment method. Must be one of: cash, bank transfer, cheque'
+        });
+      }
+
+      if (paymentMethod === 'cheque' && !chequeNumber?.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cheque number is required when payment method is cheque'
+        });
+      }
+
     items.forEach((item, index) => {
       console.log(`   Item ${index + 1}: machineId=${item.machineId}, quantity=${item.quantity}`);
     });
@@ -186,6 +204,8 @@ const processSale = async (req, res) => {
       dueDate: (paymentType === 'partial' && paymentPeriodDays) ? new Date(Date.now() + paymentPeriodDays * 24 * 60 * 60 * 1000) : undefined,
       paymentStatus: calcPaymentStatus,
       orderStatus: calcOrderStatus, // Set based on payment status
+      paymentMethod: paymentMethod,
+      chequeNumber: paymentMethod === 'cheque' ? chequeNumber.trim() : undefined,
       // Record initial payment history if any amount paid at creation
       paymentHistory: (paidAmount && paidAmount > 0) ? [{ amount: Math.round(paidAmount * 100) / 100, updatedBy: processedBy || 'System' }] : [],
       notes: notes.trim(),

@@ -90,7 +90,7 @@ const orderItemSchema = new mongoose.Schema({
   note: {
     type: String,
     trim: true,
-    maxlength: [500, 'Note cannot exceed 500 characters'],
+    maxlength: [1200, 'Note cannot exceed 1200 characters'],
     default: ''
   }
 }, { _id: false }); // Don't create separate _id for sub-documents
@@ -234,6 +234,18 @@ const pastOrderSchema = new mongoose.Schema({
     date: { type: Date, default: Date.now },
     updatedBy: { type: String, default: 'System' }
   }],
+    // Payment method
+    paymentMethod: {
+      type: String,
+      enum: ['cash', 'bank transfer', 'cheque'],
+      default: 'cash'
+    },
+    // cheque number (only populated if paymentMethod is 'cheque')
+    chequeNumber: {
+      type: String,
+      trim: true,
+      sparse: true // Allow null values for non-cheque payments
+    },
   orderStatus: {
     type: String,
     enum: ['Completed', 'Processing', 'Cancelled', 'Returned'],
