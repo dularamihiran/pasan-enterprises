@@ -244,7 +244,7 @@ export const generateInvoice = async (saleData, orderData) => {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     let itemNumber = 1;
-    let totalAmount = 0;
+    let machinesSubtotalExVat = 0;
     
     // Add cart items with detailed information
     saleData.items.forEach((item, index) => {
@@ -252,8 +252,13 @@ export const generateInvoice = async (saleData, orderData) => {
       checkNewPage(10);
       
       const cartItem = saleData.cart?.find(c => c.machineId === item.machineId) || item;
-      const itemTotal = (cartItem.unitPrice || item.unitPrice || 0) * (cartItem.quantity || item.quantity || 0);
-      totalAmount += itemTotal;
+      const quantity = cartItem.quantity || item.quantity || 0;
+      const unitPriceInclVat = cartItem.unitPrice || item.unitPrice || 0;
+      const vatPercentage = parseFloat(cartItem.vatPercentage ?? item.vatPercentage) || 0;
+      const vatMultiplier = 1 + (vatPercentage / 100);
+      const unitPriceExVat = vatMultiplier > 0 ? (unitPriceInclVat / vatMultiplier) : unitPriceInclVat;
+      const itemTotal = unitPriceExVat * quantity;
+      machinesSubtotalExVat += itemTotal;
       
       const warrantyMonths = cartItem.warrantyMonths || item.warrantyMonths || 12;
       
@@ -283,8 +288,8 @@ export const generateInvoice = async (saleData, orderData) => {
         doc.text(description, colPositions[1], yPosition);
       }
       
-      doc.text((cartItem.quantity || item.quantity || 0).toString(), colPositions[2], yPosition);
-      doc.text(formatNumberWithCommas(cartItem.unitPrice || item.unitPrice || 0), colPositions[3] + 10, yPosition, { align: 'right' });
+      doc.text(quantity.toString(), colPositions[2], yPosition);
+      doc.text(formatNumberWithCommas(unitPriceExVat), colPositions[3] + 10, yPosition, { align: 'right' });
       doc.text(warrantyMonths.toString() + 'M', colPositions[4] + 15, yPosition, { align: 'right' });
       doc.text(formatNumberWithCommas(itemTotal), colPositions[5] + 20, yPosition, { align: 'right' });
       
@@ -321,7 +326,7 @@ export const generateInvoice = async (saleData, orderData) => {
       // Machines subtotal
       doc.setFont('helvetica', 'bold');
       doc.text('MACHINES SUBTOTAL:', colPositions[4], yPosition);
-      doc.text(`Rs. ${formatNumberWithCommas(totalAmount)}`, colPositions[5] + 20, yPosition, { align: 'right' });
+      doc.text(`Rs. ${formatNumberWithCommas(machinesSubtotalExVat)}`, colPositions[5] + 20, yPosition, { align: 'right' });
       yPosition += 8;
       doc.setFont('helvetica', 'normal');
     }
@@ -371,7 +376,6 @@ export const generateInvoice = async (saleData, orderData) => {
           doc.text('-', colPositions[4] + 15, yPosition, { align: 'right' });
           doc.text(formatNumberWithCommas(extra.amount), colPositions[5] + 20, yPosition, { align: 'right' });
           
-          totalAmount += extra.amount;
           yPosition += 8;
           itemNumber++;
         }
@@ -391,7 +395,7 @@ export const generateInvoice = async (saleData, orderData) => {
     }
     
     // Calculate final totals
-    const subtotal = saleData.subtotal || totalAmount;
+    const subtotal = saleData.subtotal || machinesSubtotalExVat;
     const discountAmount = saleData.discountAmount || 0;
     const finalTotal = saleData.finalTotal || (subtotal + vatAmount - discountAmount);
     
