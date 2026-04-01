@@ -87,7 +87,7 @@ const loadImageAsBase64 = (imagePath) => {
   });
 };
 
-export const generateInvoice = async (saleData, orderData, options = {}) => {
+export const generateInvoice = async (saleData, orderData) => {
   try {
     // Create new PDF document
     const doc = new jsPDF('p', 'mm', 'a4');
@@ -98,9 +98,12 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
     let yPosition = 20;
     let currentPage = 1;
     
-    // Determine document type
-    const isQuotation = options.isQuotation || false;
-    const documentTitle = isQuotation ? 'QUOTATION' : 'TAX INVOICE';
+    // Determine document title based on VAT availability
+    const vatAmount = parseFloat(saleData.vatAmount) || 0;
+    const hasVatPercentage =
+      (parseFloat(saleData.vatPercentage) || 0) > 0 ||
+      (saleData.items || []).some((item) => (parseFloat(item.vatPercentage) || 0) > 0);
+    const documentTitle = vatAmount > 0 || hasVatPercentage ? 'TAX INVOICE' : 'INVOICE';
     
     // Load logo
     let logoBase64 = null;
@@ -175,8 +178,7 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
     const invoiceTime = currentDate.toLocaleTimeString();
     
     doc.text(`Buyer: ${saleData.customerInfo.name}`, 15, yPosition);
-    const documentNumberLabel = isQuotation ? 'Quotation Number:' : 'Invoice Number:';
-    doc.text(`${documentNumberLabel} ${orderData.orderId}`, pageWidth - 15, yPosition, { align: 'right' });
+    doc.text(`Invoice Number: ${orderData.orderId}`, pageWidth - 15, yPosition, { align: 'right' });
     yPosition += 6;
     
 
@@ -185,8 +187,8 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
       doc.text(`Customer VAT No: ${saleData.customerVatNumber}`, 15, yPosition);
     }
 
-    // Add Company VAT number (right side)
-    doc.text('Company VAT NO: 179781190-7000', pageWidth - 15, yPosition, { align: 'right' });
+    // Add Supplier VAT number (right side)
+    doc.text('Supplier VAT NO: 179781190-7000', pageWidth - 15, yPosition, { align: 'right' });
     yPosition += 6;
 
     // Add phone number
@@ -213,7 +215,7 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
     
     // Function to draw table header
     const drawTableHeader = () => {
-      const colPositions = [15, 30, 75, 100, 125, 150, 175]; // No., Description, Qty, Unit Price, VAT%, Warranty, Amount
+      const colPositions = [15, 30, 75, 110, 145, 175]; // No., Description, Qty, Unit Price, Warranty, Amount
       
       // Check if we need a new page for header
       checkNewPage(15);
@@ -228,9 +230,8 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
       doc.text('Description', colPositions[1], yPosition);
       doc.text('Qty', colPositions[2], yPosition);
       doc.text('Unit Price', colPositions[3] + 10, yPosition, { align: 'right' });
-      doc.text('VAT%', colPositions[4] + 10, yPosition, { align: 'right' });
-      doc.text('Warranty', colPositions[5] + 15, yPosition, { align: 'right' });
-      doc.text('Amount', colPositions[6] + 20, yPosition, { align: 'right' });
+      doc.text('Warranty', colPositions[4] + 15, yPosition, { align: 'right' });
+      doc.text('Amount', colPositions[5] + 20, yPosition, { align: 'right' });
       
       yPosition += 10;
       return colPositions;
@@ -254,7 +255,6 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
       const itemTotal = (cartItem.unitPrice || item.unitPrice || 0) * (cartItem.quantity || item.quantity || 0);
       totalAmount += itemTotal;
       
-      const vatPercentage = cartItem.vatPercentage || item.vatPercentage || 0;
       const warrantyMonths = cartItem.warrantyMonths || item.warrantyMonths || 12;
       
       doc.text(itemNumber.toString(), colPositions[0], yPosition);
@@ -285,9 +285,8 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
       
       doc.text((cartItem.quantity || item.quantity || 0).toString(), colPositions[2], yPosition);
       doc.text(formatNumberWithCommas(cartItem.unitPrice || item.unitPrice || 0), colPositions[3] + 10, yPosition, { align: 'right' });
-      doc.text(vatPercentage.toString() + '%', colPositions[4] + 10, yPosition, { align: 'right' });
-      doc.text(warrantyMonths.toString() + 'M', colPositions[5] + 15, yPosition, { align: 'right' });
-      doc.text(formatNumberWithCommas(itemTotal), colPositions[6] + 20, yPosition, { align: 'right' });
+      doc.text(warrantyMonths.toString() + 'M', colPositions[4] + 15, yPosition, { align: 'right' });
+      doc.text(formatNumberWithCommas(itemTotal), colPositions[5] + 20, yPosition, { align: 'right' });
       
       yPosition += 5;
       
@@ -322,7 +321,7 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
       // Machines subtotal
       doc.setFont('helvetica', 'bold');
       doc.text('MACHINES SUBTOTAL:', colPositions[4], yPosition);
-      doc.text(`Rs. ${formatNumberWithCommas(totalAmount)}`, colPositions[6] + 20, yPosition, { align: 'right' });
+      doc.text(`Rs. ${formatNumberWithCommas(totalAmount)}`, colPositions[5] + 20, yPosition, { align: 'right' });
       yPosition += 8;
       doc.setFont('helvetica', 'normal');
     }
@@ -369,9 +368,8 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
           
           doc.text('1', colPositions[2], yPosition);
           doc.text(formatNumberWithCommas(extra.amount), colPositions[3] + 10, yPosition, { align: 'right' });
-          doc.text('-', colPositions[4] + 10, yPosition, { align: 'right' });
-          doc.text('-', colPositions[5] + 15, yPosition, { align: 'right' });
-          doc.text(formatNumberWithCommas(extra.amount), colPositions[6] + 20, yPosition, { align: 'right' });
+          doc.text('-', colPositions[4] + 15, yPosition, { align: 'right' });
+          doc.text(formatNumberWithCommas(extra.amount), colPositions[5] + 20, yPosition, { align: 'right' });
           
           totalAmount += extra.amount;
           yPosition += 8;
@@ -387,14 +385,13 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
       const extrasTotal = saleData.extras.reduce((sum, extra) => sum + (extra.amount || 0), 0);
       doc.setFont('helvetica', 'bold');
       doc.text('EXTRA CHARGES SUBTOTAL:', colPositions[4], yPosition);
-      doc.text(`Rs. ${formatNumberWithCommas(extrasTotal)}`, colPositions[6] + 20, yPosition, { align: 'right' });
+      doc.text(`Rs. ${formatNumberWithCommas(extrasTotal)}`, colPositions[5] + 20, yPosition, { align: 'right' });
       yPosition += 8;
       doc.setFont('helvetica', 'normal');
     }
     
     // Calculate final totals
     const subtotal = saleData.subtotal || totalAmount;
-    const vatAmount = saleData.vatAmount || 0;
     const discountAmount = saleData.discountAmount || 0;
     const finalTotal = saleData.finalTotal || (subtotal + vatAmount - discountAmount);
     
@@ -567,7 +564,7 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
     }
     
     // Generate filename
-    const documentType = isQuotation ? 'Quotation' : 'Invoice';
+    const documentType = 'Invoice';
     const filename = `${documentType}_${orderData.orderId}_${currentDate.toISOString().split('T')[0]}.pdf`;
     
     // Save the PDF
@@ -581,16 +578,15 @@ export const generateInvoice = async (saleData, orderData, options = {}) => {
     
   } catch (error) {
     console.error('Error generating invoice:', error);
-    const documentType = options.isQuotation ? 'quotation' : 'invoice';
     return {
       success: false,
       error: error.message,
-      message: `Failed to generate ${documentType}`
+      message: 'Failed to generate invoice'
     };
   }
 };
 
-// Function to generate quotation (wrapper for generateInvoice with quotation option)
+// Backward-compatible wrapper; quotation PDFs are handled in quotationService
 export const generateQuotation = async (saleData, orderData) => {
-  return await generateInvoice(saleData, orderData, { isQuotation: true });
+  return await generateInvoice(saleData, orderData);
 };
