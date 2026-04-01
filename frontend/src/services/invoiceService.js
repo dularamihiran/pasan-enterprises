@@ -325,7 +325,7 @@ export const generateInvoice = async (saleData, orderData) => {
       
       // Machines subtotal
       doc.setFont('helvetica', 'bold');
-      doc.text('MACHINES SUBTOTAL:', colPositions[4], yPosition);
+      doc.text('MACHINES SUBTOTAL:', colPositions[3], yPosition);
       doc.text(`Rs. ${formatNumberWithCommas(machinesSubtotalExVat)}`, colPositions[5] + 20, yPosition, { align: 'right' });
       yPosition += 8;
       doc.setFont('helvetica', 'normal');
@@ -388,7 +388,7 @@ export const generateInvoice = async (saleData, orderData) => {
       
       const extrasTotal = saleData.extras.reduce((sum, extra) => sum + (extra.amount || 0), 0);
       doc.setFont('helvetica', 'bold');
-      doc.text('EXTRA CHARGES SUBTOTAL:', colPositions[4], yPosition);
+      doc.text('EXTRA CHARGES SUBTOTAL:', colPositions[3], yPosition);
       doc.text(`Rs. ${formatNumberWithCommas(extrasTotal)}`, colPositions[5] + 20, yPosition, { align: 'right' });
       yPosition += 8;
       doc.setFont('helvetica', 'normal');
@@ -483,7 +483,32 @@ export const generateInvoice = async (saleData, orderData) => {
     doc.setFontSize(10);
     const amountInWords = numberToWords(Math.floor(finalTotal));
     doc.text(`SAY TOTAL: ${amountInWords}`, 15, yPosition);
-    yPosition += 15;
+    yPosition += 6;
+
+    // Payment method details
+    const normalizedPaymentMethod = (saleData.paymentMethod || '').toString().trim().toLowerCase();
+    let paymentMethodLabel = 'Cash';
+    if (normalizedPaymentMethod === 'bank transfer' || normalizedPaymentMethod === 'bank_transfer' || normalizedPaymentMethod === 'transfer') {
+      paymentMethodLabel = 'Bank Transfer';
+    } else if (normalizedPaymentMethod === 'cheque' || normalizedPaymentMethod === 'check') {
+      paymentMethodLabel = 'Cheque';
+    } else if (normalizedPaymentMethod === 'cash') {
+      paymentMethodLabel = 'Cash';
+    }
+
+    checkNewPage(10);
+    doc.text(`Payment Method: ${paymentMethodLabel}`, 15, yPosition);
+    yPosition += 6;
+
+    if (paymentMethodLabel === 'Cheque') {
+      const chequeNumber = (saleData.chequeNumber || saleData.checkNumber || '').toString().trim();
+      if (chequeNumber) {
+        doc.text(`Cheque Number: ${chequeNumber}`, 15, yPosition);
+        yPosition += 6;
+      }
+    }
+
+    yPosition += 9;
     
     // Check for new page before terms and conditions
     checkNewPage(60);

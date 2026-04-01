@@ -524,6 +524,8 @@ const SellItem = () => {
             finalTotal: getFinalTotal(),
             // Payment details
             paymentType: paymentType,
+            paymentMethod,
+            chequeNumber: paymentMethod === 'cheque' ? chequeNumber.trim() : '',
             paidAmount: paymentType === 'partial' ? paidToSend : getFinalTotal(),
             remainingAmount: paymentType === 'partial' ? Math.round((finalTotal - paidToSend) * 100) / 100 : 0
           };
