@@ -237,14 +237,14 @@ const pastOrderSchema = new mongoose.Schema({
     // Payment method
     paymentMethod: {
       type: String,
-      enum: ['cash', 'bank transfer', 'check'],
+      enum: ['cash', 'bank transfer', 'cheque'],
       default: 'cash'
     },
-    // Check number (only populated if paymentMethod is 'check')
-    checkNumber: {
+    // cheque number (only populated if paymentMethod is 'cheque')
+    chequeNumber: {
       type: String,
       trim: true,
-      sparse: true // Allow null values for non-check payments
+      sparse: true // Allow null values for non-cheque payments
     },
   orderStatus: {
     type: String,

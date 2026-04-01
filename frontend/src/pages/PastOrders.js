@@ -741,6 +741,28 @@ const PastOrders = () => {
     }
   };
 
+  const getPaymentMethodLabel = (method) => {
+    if (!method) return '';
+
+    const normalized = String(method).trim().toLowerCase();
+    if (normalized === 'cash') return 'Cash';
+    if (normalized === 'bank transfer' || normalized === 'bank_transfer' || normalized === 'transfer') return 'Bank Transfer';
+    if (normalized === 'cheque' || normalized === 'check') return 'Cheque';
+
+    return String(method);
+  };
+
+  const isCheckPaymentMethod = (method) => {
+    if (!method) return false;
+    const normalized = String(method).trim().toLowerCase();
+    return normalized === 'check' || normalized === 'cheque';
+  };
+
+  const getCheckNumber = (order) => {
+    if (!order) return '';
+    return order.checkNumber || order.chequeNumber || '';
+  };
+
   const toggleOrderExpansion = (orderId) => {
     const newExpanded = new Set(expandedOrders);
     if (newExpanded.has(orderId)) {
@@ -991,6 +1013,10 @@ const PastOrders = () => {
                                 by {order.processedBy}
                               </span>
                             )}
+                            <div className="mt-1 text-xs text-slate-500">
+                              Payment Method: {getPaymentMethodLabel(order.paymentMethod)}
+                              {isCheckPaymentMethod(order.paymentMethod) && getCheckNumber(order) ? ` (${getCheckNumber(order)})` : ''}
+                            </div>
                           {/* Payment summary */}
                           <div className="mt-2 text-sm text-slate-700">
                             <div className="flex items-center space-x-3">
@@ -1793,6 +1819,13 @@ const PastOrders = () => {
                     <div>
                       <p className="text-sm text-slate-500">Payment Type</p>
                       <p className="font-medium">{selectedOrder.paymentType || 'full'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-500">Payment Method</p>
+                      <p className="font-medium">
+                        {getPaymentMethodLabel(selectedOrder.paymentMethod)}
+                        {isCheckPaymentMethod(selectedOrder.paymentMethod) && getCheckNumber(selectedOrder) ? ` (${getCheckNumber(selectedOrder)})` : ''}
+                      </p>
                     </div>
                     <div>
                       <p className="text-sm text-slate-500">Paid Amount</p>

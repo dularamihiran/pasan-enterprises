@@ -50,7 +50,7 @@ const SellItem = () => {
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentPeriodDays, setPaymentPeriodDays] = useState(60);
     const [paymentMethod, setPaymentMethod] = useState('cash');
-    const [checkNumber, setCheckNumber] = useState('');
+    const [chequeNumber, setChequeNumber] = useState('');
   // Customer VAT Number (UI only - not stored in database)
   const [customerVatNumber, setCustomerVatNumber] = useState('');
 
@@ -458,8 +458,8 @@ const SellItem = () => {
         paidToSend = finalTotal;
       }
 
-      if (paymentMethod === 'check' && !checkNumber.trim()) {
-        setError('Check number is required when payment method is check.');
+      if (paymentMethod === 'cheque' && !chequeNumber.trim()) {
+        setError('Cheque number is required when payment method is cheque.');
         setProcessing(false);
         return;
       }
@@ -489,7 +489,7 @@ const SellItem = () => {
         paymentPeriodDays: paymentType === 'partial' ? (Number(paymentPeriodDays) || 60) : 0,
         remainingAmount: Math.round((finalTotal - paidToSend) * 100) / 100,
         paymentMethod,
-        checkNumber: paymentMethod === 'check' ? checkNumber.trim() : ''
+        chequeNumber: paymentMethod === 'cheque' ? chequeNumber.trim() : ''
       };
 
       console.log('Processing sale with data:', saleData);
@@ -554,7 +554,7 @@ const SellItem = () => {
         setPaidAmount(0);
         setPaymentPeriodDays(60);
         setPaymentMethod('cash');
-        setCheckNumber('');
+        setChequeNumber('');
         
         // Refresh machines to get updated stock
         await fetchMachines();
@@ -1168,18 +1168,18 @@ const SellItem = () => {
             >
               <option value="cash">Cash</option>
               <option value="bank transfer">Bank Transfer</option>
-              <option value="check">Check</option>
+              <option value="cheque">Cheque</option>
             </select>
           </div>
 
-          {paymentMethod === 'check' && (
+          {paymentMethod === 'cheque' && (
             <div className="md:col-span-1">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Check Number</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Cheque Number</label>
               <input
                 type="text"
-                value={checkNumber}
-                onChange={(e) => setCheckNumber(e.target.value)}
-                placeholder="Enter check number"
+                value={chequeNumber}
+                onChange={(e) => setChequeNumber(e.target.value)}
+                placeholder="Enter cheque number"
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white/50"
               />
             </div>
