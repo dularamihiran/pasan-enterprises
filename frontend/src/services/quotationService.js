@@ -64,6 +64,12 @@ const formatNumberWithCommas = (num) => {
   return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 };
 
+const normalizePdfDescriptionText = (text = '') => {
+  return String(text)
+    .replace(/\u2267/g, '>=')
+    .replace(/\u2266/g, '<=');
+};
+
 // Function to load image as base64
 const loadImageAsBase64 = (imagePath) => {
   return new Promise((resolve, reject) => {
@@ -269,14 +275,15 @@ export const generateQuotationPDF = async (quotationData) => {
     
     for (const item of quotationData.items) {
       const itemTotal = item.unitPrice * item.quantity;
+      const itemDescription = normalizePdfDescriptionText(item.extraDescription || '');
       
       // Calculate row height based on content
       const imageSize = 40;
       let textHeight = 20;
       
       // Calculate description height
-      if (item.extraDescription && item.extraDescription.trim()) {
-        const descLines = doc.splitTextToSize(item.extraDescription, colWidths.item - 6);
+      if (itemDescription.trim()) {
+        const descLines = doc.splitTextToSize(itemDescription, colWidths.item - 6);
         textHeight = Math.max(textHeight, descLines.length * 4 + 20);
       }
       
@@ -362,8 +369,8 @@ export const generateQuotationPDF = async (quotationData) => {
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       
-      if (item.extraDescription && item.extraDescription.trim()) {
-        const descLines = doc.splitTextToSize(item.extraDescription, colWidths.item - 6);
+      if (itemDescription.trim()) {
+        const descLines = doc.splitTextToSize(itemDescription, colWidths.item - 6);
         descLines.forEach((line, idx) => {
           doc.text(line, itemContentX, itemTextY + (idx * 3.5));
         });

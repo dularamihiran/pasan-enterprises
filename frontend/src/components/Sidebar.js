@@ -182,7 +182,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, activeTab, setActiveTab }) => {
         {!isCollapsed ? (
           <div className="text-center">
             <div className="text-xs text-slate-400 space-y-1">
-              <p className="font-medium">&copy; 2025 P.E. INDUSTRIAL AUTOMATION</p>
+              <p className="font-medium">&copy; 2026 P.E. INDUSTRIAL AUTOMATION</p>
               <p className="text-slate-500">Version 1.0.6</p>
             </div>
             <div className="mt-2 lg:mt-3 flex justify-center space-x-1">
