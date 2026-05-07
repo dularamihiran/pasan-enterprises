@@ -17,6 +17,8 @@ import {
 } from '@heroicons/react/24/outline';
 import { pastOrdersAPI, handleApiError } from '../services/apiService';
 import { generateInvoice } from '../services/invoiceService';
+import * as ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 
 const PastOrders = () => {
   // Helper function to format dates as DD/MM/YYYY
@@ -330,6 +332,7 @@ const PastOrders = () => {
   const [paymentInputAmount, setPaymentInputAmount] = useState('');
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState('');
+  const [exporting, setExporting] = useState(false);
   
   // Server-side pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -647,6 +650,100 @@ const PastOrders = () => {
     }
   };
 
+  const handleDownloadExcel = async () => {
+    if (!totalOrders || totalOrders === 0) {
+      alert('No orders available to export for the current filters.');
+      return;
+    }
+
+    try {
+      setExporting(true);
+
+      const params = {
+        page: 1,
+        limit: totalOrders
+      };
+
+      if (searchTerm.trim()) {
+        params.search = searchTerm.trim();
+      }
+      if (fromDate) {
+        params.fromDate = fromDate;
+      }
+      if (toDate) {
+        params.toDate = toDate;
+      }
+      if (paymentFilter !== 'all') {
+        params.paymentFilter = paymentFilter;
+      }
+
+      const response = await pastOrdersAPI.getAll(params);
+      if (!response.data.success) {
+        alert('Failed to load orders for export.');
+        return;
+      }
+
+      const ordersData = Array.isArray(response.data.data) ? response.data.data : [];
+      const rows = [];
+
+      ordersData.forEach((order) => {
+        const orderDate = formatDate(order.createdAt);
+        const customerName = order.customerInfo?.name || '';
+        const invoiceNo = order.orderId || '';
+
+        (order.items || []).forEach((item) => {
+          const quantity = Number(item.quantity ?? 0) || 0;
+          const totalPrice = Number(item.totalWithVAT ?? item.subtotal ?? (item.unitPrice ? item.unitPrice * quantity : 0)) || 0;
+
+          rows.push({
+            date: orderDate,
+            customer: customerName,
+            invoiceNo: invoiceNo,
+            item: item.name || '',
+            quantity: quantity,
+            totalPrice: Math.round(totalPrice)
+          });
+        });
+      });
+
+      if (rows.length === 0) {
+        alert('No order items available to export.');
+        return;
+      }
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Past Orders');
+
+      worksheet.columns = [
+        { header: 'Date', key: 'date', width: 12 },
+        { header: 'Customer', key: 'customer', width: 22 },
+        { header: 'Invoice No.', key: 'invoiceNo', width: 20 },
+        { header: 'Item', key: 'item', width: 28 },
+        { header: 'Quantity', key: 'quantity', width: 10 },
+        { header: 'Total Price', key: 'totalPrice', width: 14 }
+      ];
+
+      worksheet.addRows(rows);
+      worksheet.getRow(1).font = { bold: true, size: 12 };
+
+      const today = new Date();
+      const stamp = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      const filename = `sales_${stamp}.xlsx`;
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+      saveAs(blob, filename);
+    } catch (err) {
+      console.error('Error exporting orders:', err);
+      const errorInfo = handleApiError(err);
+      alert(errorInfo.message || 'Failed to export orders.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // Handle search and filter changes
   const handleSearchChange = (value) => {
     setSearchTerm(value);
@@ -890,6 +987,16 @@ const PastOrders = () => {
                 className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
+
+            <button
+              onClick={handleDownloadExcel}
+              disabled={exporting}
+              className="inline-flex items-center px-4 py-2 text-sm text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+              title="Download filtered orders as Excel"
+            >
+              <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
+              {exporting ? 'Exporting...' : 'Export Excel'}
+            </button>
             
             {/* Clear Filters Button */}
             {(fromDate || toDate || paymentFilter !== 'all') && (
