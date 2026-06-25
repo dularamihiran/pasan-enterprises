@@ -61,7 +61,7 @@ const getAllOrders = async (req, res) => {
 
     // Execute query with pagination and populate customer
     let orders = await PastOrder.find(query)
-      .populate('customerId', 'name phone email')
+      .populate('customerId', 'name phone email vatNo')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -71,7 +71,7 @@ const getAllOrders = async (req, res) => {
       // For payment filtering, we need to fetch more orders and filter them
       // So let's re-query without pagination first
       const allMatchingOrders = await PastOrder.find(query)
-        .populate('customerId', 'name phone email')
+        .populate('customerId', 'name phone email vatNo')
         .sort({ createdAt: -1 });
       
       // Filter based on payment status

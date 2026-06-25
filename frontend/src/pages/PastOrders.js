@@ -614,7 +614,7 @@ const PastOrders = () => {
       
       const saleData = {
         customerInfo: order.customerInfo,
-        customerVatNumber: order.customerVatNumber || '',
+        customerVatNumber: order.customerId?.vatNo || order.customerVatNumber || '',
         items: order.items.map(item => ({
           machineId: item.machineId,
           name: item.name,

@@ -288,7 +288,7 @@ const deleteCustomer = async (req, res) => {
 // @access  Private
 const findOrCreateCustomer = async (customerData) => {
   try {
-    const { name, phone, email, nic, address } = customerData;
+    const { name, phone, email, nic, address, vatNo } = customerData;
 
     // First try to find existing customer by phone or NIC
     let customer = await Customer.findByPhoneOrNIC(phone, nic);
@@ -319,7 +319,13 @@ const findOrCreateCustomer = async (customerData) => {
         customer.address = address;
         needsUpdate = true;
       }
-      
+
+      // Update VAT number if provided
+      if (vatNo && customer.vatNo !== vatNo) {
+        customer.vatNo = vatNo;
+        needsUpdate = true;
+      }
+
       if (needsUpdate) {
         await customer.save();
       }
@@ -333,7 +339,8 @@ const findOrCreateCustomer = async (customerData) => {
       phone,
       email,
       nic: nic && nic.trim() ? nic.trim() : undefined, // Convert empty strings to undefined
-      address
+      address,
+      vatNo
     });
 
     await customer.save();
