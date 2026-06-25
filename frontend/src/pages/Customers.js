@@ -43,7 +43,8 @@ const Customers = () => {
     email: '',
     phone: '',
     nic: '',
-    address: ''
+    address: '',
+    vatNo: ''
   });
 
   // Load customers from backend with pagination
@@ -113,7 +114,8 @@ const Customers = () => {
       email: '',
       phone: '',
       nic: '',
-      address: ''
+      address: '',
+      vatNo: ''
     });
     setEditingCustomer(null);
     setShowAddModal(true);
@@ -125,7 +127,8 @@ const Customers = () => {
       email: customer.email,
       phone: customer.phone,
       nic: customer.nic,
-      address: customer.address || ''
+      address: customer.address || '',
+      vatNo: customer.vatNo || ''
     });
     setEditingCustomer(customer._id);
     setShowAddModal(true);
@@ -517,7 +520,7 @@ const Customers = () => {
                   value={formData.phone}
                   onChange={(e) => setFormData({...formData, phone: e.target.value})}
                   className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter phone number (e.g., +94 77 123 4567)"
+                  placeholder="Enter phone number"
                   disabled={submitting}
                 />
               </div>
@@ -534,11 +537,28 @@ const Customers = () => {
                   value={formData.nic}
                   onChange={(e) => setFormData({...formData, nic: e.target.value})}
                   className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter NIC number (optional - e.g., 123456789V or 199812345678)"
+                  placeholder="Optional (123456789V or 199812345678)"
                   disabled={submitting}
                 />
               </div>
-              
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <span className="flex items-center space-x-2">
+                    <IdentificationIcon className="w-4 h-4" />
+                    <span>VAT Number</span>
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.vatNo}
+                  onChange={(e) => setFormData({...formData, vatNo: e.target.value})}
+                  className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter VAT number (optional)"
+                  disabled={submitting}
+                />
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   <span className="flex items-center space-x-2">

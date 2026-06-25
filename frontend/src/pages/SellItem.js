@@ -210,7 +210,7 @@ const SellItem = () => {
         category: machine.category,
         unitPrice: machine.price,
         quantity: 1,
-        vatPercentage: 18, // Default 18% VAT per item
+        vatPercentage: 0, // Default 0% VAT per item
         warrantyMonths: 12, // Default 12 months warranty
         availableStock: machine.quantity,
         note: machine.description || '' // Use machine's existing description as note

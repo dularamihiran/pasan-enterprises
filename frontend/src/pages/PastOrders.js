@@ -182,7 +182,10 @@ const PastOrders = () => {
       if ('unitPrice' in item) {
         // unitPrice is the per-unit price including VAT
         const unitPriceInclVAT = toNumber(item.unitPrice);
-        const vatPct = toNumber(item.vatPercentage) ? toNumber(item.vatPercentage) / 100 : vatRate;
+        // Use the item's own VAT % when present (including 0%); only fall back to the
+        // order-level vatRate when the field is absent. Checking truthiness here would
+        // wrongly treat a legitimate 0% VAT as "missing" and apply the default rate.
+        const vatPct = ('vatPercentage' in item) ? toNumber(item.vatPercentage) / 100 : vatRate;
         
         // Calculate machine price (excluding VAT)
         // Correct formula: base price = unitPrice / (1 + VAT%)
@@ -685,15 +688,23 @@ const PastOrders = () => {
 
       const ordersData = Array.isArray(response.data.data) ? response.data.data : [];
       const rows = [];
+      const mergeGroups = [];
 
       ordersData.forEach((order) => {
         const orderDate = formatDate(order.createdAt);
         const customerName = order.customerInfo?.name || '';
         const invoiceNo = order.orderId || '';
+        const totals = calculateOrderTotals(order);
+        const discountAmount = Math.round(totals.discountAmount || 0);
+        const finalTotal = Math.round(totals.finalTotal || 0);
 
-        (order.items || []).forEach((item) => {
+        const items = order.items || [];
+        const startRowIndex = rows.length;
+
+        items.forEach((item) => {
           const quantity = Number(item.quantity ?? 0) || 0;
           const totalPrice = Number(item.totalWithVAT ?? item.subtotal ?? (item.unitPrice ? item.unitPrice * quantity : 0)) || 0;
+          const vatPct = Number(item.vatPercentage ?? 0) || 0;
 
           rows.push({
             date: orderDate,
@@ -701,9 +712,17 @@ const PastOrders = () => {
             invoiceNo: invoiceNo,
             item: item.name || '',
             quantity: quantity,
-            totalPrice: Math.round(totalPrice)
+            totalPrice: Math.round(totalPrice),
+            vatPct: vatPct,
+            discount: discountAmount,
+            finalTotal: finalTotal
           });
         });
+
+        const endRowIndex = rows.length - 1;
+        if (items.length > 1) {
+          mergeGroups.push({ startRowIndex, endRowIndex });
+        }
       });
 
       if (rows.length === 0) {
@@ -720,11 +739,24 @@ const PastOrders = () => {
         { header: 'Invoice No.', key: 'invoiceNo', width: 20 },
         { header: 'Item', key: 'item', width: 28 },
         { header: 'Quantity', key: 'quantity', width: 10 },
-        { header: 'Total Price', key: 'totalPrice', width: 14 }
+        { header: 'Total Price', key: 'totalPrice', width: 14 },
+        { header: 'VAT %', key: 'vatPct', width: 10 },
+        { header: 'Discount', key: 'discount', width: 14 },
+        { header: 'Final Invoice Total', key: 'finalTotal', width: 20 }
       ];
 
       worksheet.addRows(rows);
       worksheet.getRow(1).font = { bold: true, size: 12 };
+
+      // Merge Discount (col 8) and Final Invoice Total (col 9) cells for multi-item invoices
+      mergeGroups.forEach(({ startRowIndex, endRowIndex }) => {
+        const wsStart = startRowIndex + 2; // +1 for header row, +1 for 1-based index
+        const wsEnd = endRowIndex + 2;
+        worksheet.mergeCells(wsStart, 8, wsEnd, 8);
+        worksheet.mergeCells(wsStart, 9, wsEnd, 9);
+        worksheet.getCell(wsStart, 8).alignment = { vertical: 'middle', horizontal: 'right' };
+        worksheet.getCell(wsStart, 9).alignment = { vertical: 'middle', horizontal: 'right' };
+      });
 
       const today = new Date();
       const stamp = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
