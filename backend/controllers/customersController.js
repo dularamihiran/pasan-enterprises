@@ -107,11 +107,11 @@ const getCustomerById = async (req, res) => {
 // @access  Public
 const createCustomer = async (req, res) => {
   try {
-    const { name, phone, email, nic, address } = req.body;
+    const { name, phone, email, nic, address, vatNo } = req.body;
 
     // Check if customer already exists by phone or NIC
     const existingCustomer = await Customer.findByPhoneOrNIC(phone, nic);
-    
+
     if (existingCustomer) {
       return res.status(400).json({
         success: false,
@@ -125,7 +125,8 @@ const createCustomer = async (req, res) => {
       phone,
       email,
       nic,
-      address
+      address,
+      vatNo
     });
 
     const savedCustomer = await customer.save();
@@ -167,7 +168,7 @@ const createCustomer = async (req, res) => {
 // @access  Public
 const updateCustomer = async (req, res) => {
   try {
-    const { name, phone, email, nic, address } = req.body;
+    const { name, phone, email, nic, address, vatNo } = req.body;
 
     // Check if phone or NIC is being updated and if it already exists
     if (phone || nic) {
@@ -191,7 +192,7 @@ const updateCustomer = async (req, res) => {
 
     const customer = await Customer.findByIdAndUpdate(
       req.params.id,
-      { name, phone, email, nic, address },
+      { name, phone, email, nic, address, vatNo },
       { new: true, runValidators: true }
     );
 
