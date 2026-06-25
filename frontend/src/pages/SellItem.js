@@ -170,6 +170,7 @@ const SellItem = () => {
       nic: customer.nic || '',
       address: customer.address || ''
     });
+    setCustomerVatNumber(customer.vatNo || '');
     setShowCustomerDropdown(false);
     setCustomerSearchResults([]);
   };
@@ -470,7 +471,8 @@ const SellItem = () => {
           phone: customerInfo.phone.trim(),
           email: customerInfo.email?.trim() || '',
           nic: customerInfo.nic?.trim() || '',
-          address: customerInfo.address?.trim() || ''
+          address: customerInfo.address?.trim() || '',
+          vatNo: customerVatNumber?.trim() || ''
         },
         items: cart.map(item => ({
           machineId: item.machineId,
@@ -503,7 +505,7 @@ const SellItem = () => {
         try {
           const invoiceData = {
             customerInfo: saleData.customerInfo,
-            customerVatNumber: customerVatNumber, // UI only - not stored in database
+            customerVatNumber: customerVatNumber,
             items: cart.map(item => ({
               machineId: item.machineId,
               name: item.name,
