@@ -182,7 +182,10 @@ const PastOrders = () => {
       if ('unitPrice' in item) {
         // unitPrice is the per-unit price including VAT
         const unitPriceInclVAT = toNumber(item.unitPrice);
-        const vatPct = toNumber(item.vatPercentage) ? toNumber(item.vatPercentage) / 100 : vatRate;
+        // Use the item's own VAT % when present (including 0%); only fall back to the
+        // order-level vatRate when the field is absent. Checking truthiness here would
+        // wrongly treat a legitimate 0% VAT as "missing" and apply the default rate.
+        const vatPct = ('vatPercentage' in item) ? toNumber(item.vatPercentage) / 100 : vatRate;
         
         // Calculate machine price (excluding VAT)
         // Correct formula: base price = unitPrice / (1 + VAT%)
