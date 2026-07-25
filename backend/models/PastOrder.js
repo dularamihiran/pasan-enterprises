@@ -1,4 +1,9 @@
 const mongoose = require('mongoose');
+const Counter = require('./Counter');
+
+// Uppercase 3-letter month abbreviations for order ID generation
+const MONTH_ABBREVIATIONS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
+                             'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
 // Schema for individual items in an order
 const orderItemSchema = new mongoose.Schema({
@@ -114,16 +119,7 @@ const extraChargeSchema = new mongoose.Schema({
 const pastOrderSchema = new mongoose.Schema({
   orderId: {
     type: String,
-    unique: true, // Index defined here
-    default: function() {
-      // Generate order ID: ORD-YYYYMMDD-XXXXX
-      const date = new Date();
-      const dateStr = date.getFullYear().toString() + 
-                     (date.getMonth() + 1).toString().padStart(2, '0') + 
-                     date.getDate().toString().padStart(2, '0');
-      const randomNum = Math.floor(Math.random() * 99999).toString().padStart(5, '0');
-      return `ORD-${dateStr}-${randomNum}`;
-    }
+    unique: true // Index defined here. Generated in pre-save hook (see below).
   },
   customerId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -272,6 +268,31 @@ pastOrderSchema.index({ createdAt: -1 });
 pastOrderSchema.index({ 'customerInfo.phone': 1 });
 pastOrderSchema.index({ 'customerInfo.name': 'text' });
 pastOrderSchema.index({ 'items.machineId': 1 }); // Index for machine sales stats queries
+
+// Pre-save middleware to generate a sequential order ID.
+// Format: YYMMM_PEIA_XXXX (e.g. 26JUL_PEIA_0001) where XXXX is a
+// per-month sequence that resets at the start of each calendar month.
+pastOrderSchema.pre('save', async function(next) {
+  if (!this.isNew || this.orderId) {
+    return next();
+  }
+
+  try {
+    const date = this.createdAt || new Date();
+    const yy = date.getFullYear().toString().slice(-2);
+    const mmm = MONTH_ABBREVIATIONS[date.getMonth()];
+
+    // Counter key is unique per calendar year+month so the sequence
+    // resets on the 1st of every month.
+    const counterKey = `orderId-${yy}${mmm}`;
+    const seq = await Counter.getNextSequence(counterKey, this.$session());
+
+    this.orderId = `${yy}${mmm}_PEIA_${seq.toString().padStart(4, '0')}`;
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
 
 // Pre-save middleware to calculate totals
 pastOrderSchema.pre('save', function(next) {
