@@ -693,6 +693,7 @@ const PastOrders = () => {
       ordersData.forEach((order) => {
         const orderDate = formatDate(order.createdAt);
         const customerName = order.customerInfo?.name || '';
+        const customerVatNo = order.customerInfo?.vatNo || order.customerId?.vatNo || order.customerVatNumber || '-';
         const invoiceNo = order.orderId || '';
         const totals = calculateOrderTotals(order);
         const discountAmount = Math.round(totals.discountAmount || 0);
@@ -709,6 +710,7 @@ const PastOrders = () => {
           rows.push({
             date: orderDate,
             customer: customerName,
+            customerVatNo: customerVatNo,
             invoiceNo: invoiceNo,
             item: item.name || '',
             quantity: quantity,
@@ -736,6 +738,7 @@ const PastOrders = () => {
       worksheet.columns = [
         { header: 'Date', key: 'date', width: 12 },
         { header: 'Customer', key: 'customer', width: 22 },
+        { header: 'Customer VAT No.', key: 'customerVatNo', width: 18 },
         { header: 'Invoice No.', key: 'invoiceNo', width: 20 },
         { header: 'Item', key: 'item', width: 28 },
         { header: 'Quantity', key: 'quantity', width: 10 },
@@ -748,14 +751,14 @@ const PastOrders = () => {
       worksheet.addRows(rows);
       worksheet.getRow(1).font = { bold: true, size: 12 };
 
-      // Merge Discount (col 8) and Final Invoice Total (col 9) cells for multi-item invoices
+      // Merge Discount (col 9) and Final Invoice Total (col 10) cells for multi-item invoices
       mergeGroups.forEach(({ startRowIndex, endRowIndex }) => {
         const wsStart = startRowIndex + 2; // +1 for header row, +1 for 1-based index
         const wsEnd = endRowIndex + 2;
-        worksheet.mergeCells(wsStart, 8, wsEnd, 8);
         worksheet.mergeCells(wsStart, 9, wsEnd, 9);
-        worksheet.getCell(wsStart, 8).alignment = { vertical: 'middle', horizontal: 'right' };
+        worksheet.mergeCells(wsStart, 10, wsEnd, 10);
         worksheet.getCell(wsStart, 9).alignment = { vertical: 'middle', horizontal: 'right' };
+        worksheet.getCell(wsStart, 10).alignment = { vertical: 'middle', horizontal: 'right' };
       });
 
       const today = new Date();
