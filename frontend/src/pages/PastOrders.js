@@ -624,7 +624,8 @@ const PastOrders = () => {
           unitPrice: item.unitPrice,
           vatPercentage: item.vatPercentage || 0,
           warrantyMonths: item.warrantyMonths || 12,
-          note: item.note || ''
+          note: item.note || '',
+          serialNumbers: item.serialNumbers || []
         })),
         cart: order.items, // Include cart for compatibility
         extras: order.extras || [],
@@ -999,7 +1000,7 @@ const PastOrders = () => {
             <MagnifyingGlassIcon className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search orders by ID, customer name, or phone..."
+              placeholder="Search orders by ID, customer name, phone, or serial no..."
               value={searchTerm}
               onChange={(e) => handleSearchChange(e.target.value)}
               className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
@@ -1438,6 +1439,20 @@ const PastOrders = () => {
                                     );
                                   })()}
                                   
+                                  {/* Serial Numbers Display */}
+                                  {item.serialNumbers?.length > 0 && (
+                                    <div className="mt-2 pt-2 border-t border-slate-300">
+                                      <div className="text-slate-700 font-medium">Serial Numbers ({item.serialNumbers.length}):</div>
+                                      <div className="flex flex-wrap gap-1 mt-1">
+                                        {item.serialNumbers.map(sn => (
+                                          <span key={sn} className="font-mono text-xs text-slate-700 bg-white border border-slate-200 rounded px-1.5 py-0.5">
+                                            {sn}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
                                   {/* Machine Note Display */}
                                   {item.note && item.note.trim() !== "" && (
                                     <div className="mt-2 pt-2 border-t border-slate-300">
@@ -1830,6 +1845,20 @@ const PastOrders = () => {
                           })())}</p>
                         </div>
                         
+                        {/* Serial Numbers Display */}
+                        {item.serialNumbers?.length > 0 && (
+                          <div className="col-span-2 border-t border-slate-200 pt-2 mt-2">
+                            <p className="text-slate-700 font-medium mb-1">Serial Numbers ({item.serialNumbers.length}):</p>
+                            <div className="flex flex-wrap gap-1">
+                              {item.serialNumbers.map(sn => (
+                                <span key={sn} className="font-mono text-xs text-slate-700 bg-white border border-slate-200 rounded px-2 py-1">
+                                  {sn}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Machine Note Display */}
                         {item.note && item.note.trim() !== "" && (
                           <div className="col-span-2 border-t border-slate-200 pt-2 mt-2">

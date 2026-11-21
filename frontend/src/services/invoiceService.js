@@ -294,7 +294,24 @@ export const generateInvoice = async (saleData, orderData) => {
       doc.text(formatNumberWithCommas(itemTotal), colPositions[5] + 20, yPosition, { align: 'right' });
       
       yPosition += 5;
-      
+
+      // Display serial numbers of the units sold, if any
+      const serialNumbers = (cartItem.serialNumbers?.length ? cartItem.serialNumbers : item.serialNumbers) || [];
+      if (serialNumbers.length > 0) {
+        checkNewPage(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        const serialText = `S/N: ${serialNumbers.join(', ')}`;
+        const maxSerialWidth = (pageWidth - 15) - colPositions[1];
+        const serialLines = doc.splitTextToSize(serialText, maxSerialWidth);
+        serialLines.forEach((line) => {
+          checkNewPage(5);
+          doc.text(line, colPositions[1], yPosition);
+          yPosition += 4;
+        });
+        doc.setFontSize(8);
+      }
+
       // Display machine note if it exists
       const machineNote = cartItem.note || item.note || '';
       if (machineNote.trim()) {

@@ -4,6 +4,43 @@ const PastOrder = require('../models/PastOrder');
 const { findOrCreateCustomer, updateCustomerStats } = require('./customersController');
 const { updateMachineStock } = require('./machinesController');
 
+// Checks the serial numbers chosen for one sale item against the machine.
+// Returns { serials } (normalized) or { error }.
+// Rules:
+//  - at most one serial per unit sold
+//  - every serial must be in the machine's available serial numbers
+//  - units sold without a serial must come from stock that has no serial,
+//    so the remaining stock never has fewer units than available serials
+const resolveItemSerials = (machine, item) => {
+  const serials = Array.isArray(item.serialNumbers)
+    ? item.serialNumbers.map(sn => String(sn).trim().toUpperCase()).filter(Boolean)
+    : [];
+  const available = machine.availableSerialNumbers || [];
+  const quantity = Number(item.quantity);
+
+  if (serials.length > quantity) {
+    return { error: `${machine.name}: ${serials.length} serial numbers selected but only ${quantity} unit(s) are being sold` };
+  }
+
+  const duplicates = serials.filter((sn, i) => serials.indexOf(sn) !== i);
+  if (duplicates.length > 0) {
+    return { error: `${machine.name}: duplicate serial numbers ${[...new Set(duplicates)].join(', ')}` };
+  }
+
+  const notAvailable = serials.filter(sn => !available.includes(sn));
+  if (notAvailable.length > 0) {
+    return { error: `${machine.name}: serial number(s) not available in stock: ${notAvailable.join(', ')}` };
+  }
+
+  const unitsWithoutSerials = Math.max(machine.quantity - available.length, 0);
+  if (quantity - serials.length > unitsWithoutSerials) {
+    const minimum = quantity - unitsWithoutSerials;
+    return { error: `${machine.name}: select at least ${minimum} serial number(s) - only ${unitsWithoutSerials} unit(s) in stock have no serial number` };
+  }
+
+  return { serials };
+};
+
 // @desc    Process a sale
 // @route   POST /api/sales
 // @access  Private (requires logged-in user)
@@ -69,6 +106,9 @@ const processSale = async (req, res) => {
 
     // Validate and process items
     const processedItems = [];
+    // Serial numbers sold per machine; recorded in soldSerialNumbers once the
+    // order ID is known
+    const soldSerials = [];
     let subtotal = 0;
 
     console.log(`\n🛒 PROCESSING SALE WITH ${items.length} ITEMS:`);
@@ -106,6 +146,12 @@ const processSale = async (req, res) => {
       // Check stock availability
       if (machine.quantity < item.quantity) {
         throw new Error(`Insufficient stock for ${machine.name}. Available: ${machine.quantity}, Requested: ${item.quantity}`);
+      }
+
+      // Validate selected serial numbers (optional)
+      const { serials, error: serialError } = resolveItemSerials(machine, item);
+      if (serialError) {
+        throw new Error(serialError);
       }
 
       // Get per-item VAT percentage (default 18% if not provided)
@@ -148,13 +194,20 @@ const processSale = async (req, res) => {
         machine_price_per_unit: basePricePerUnit,
         vat_per_unit: vatAmountPerUnit,
         original_quantity: item.quantity,
-        note: item.note || '' // Machine note/description
+        note: item.note || '', // Machine note/description
+        serialNumbers: serials
       });
 
       // Update machine stock
       const oldQuantity = machine.quantity;
       machine.quantity -= item.quantity;
       const newQuantity = machine.quantity;
+
+      if (serials.length > 0) {
+        machine.availableSerialNumbers = machine.availableSerialNumbers.filter(sn => !serials.includes(sn));
+        soldSerials.push({ machineId: machine._id, serials });
+        console.log(`   Serial numbers sold: ${serials.join(', ')}`);
+      }
       
       console.log(`📦 STOCK UPDATE: ${machine.name}`);
       console.log(`   Old Stock: ${oldQuantity}`);
@@ -241,6 +294,22 @@ const processSale = async (req, res) => {
     });
 
     await order.save({ session });
+
+    // Record sold serial numbers against the machines, with the order ID
+    const soldAt = new Date();
+    for (const { machineId, serials } of soldSerials) {
+      await Machine.updateOne(
+        { _id: machineId },
+        {
+          $push: {
+            soldSerialNumbers: {
+              $each: serials.map(serialNumber => ({ serialNumber, orderId: order.orderId, soldAt }))
+            }
+          }
+        },
+        { session }
+      );
+    }
 
     // Update customer statistics (use finalTotal for accurate stats)
     await updateCustomerStats(customer._id, finalTotal);
@@ -385,10 +454,16 @@ const validateSale = async (req, res) => {
           itemCheck.machineName = machine.name;
           itemCheck.unitPrice = machine.price;
           itemCheck.availableStock = machine.quantity;
-          
+          const serialError = resolveItemSerials(machine, item).error;
+
           if (machine.quantity < item.quantity) {
             itemCheck.isValid = false;
             itemCheck.errors.push(`Insufficient stock. Available: ${machine.quantity}, Requested: ${item.quantity}`);
+            validation.isValid = false;
+          } else if (serialError) {
+            itemCheck.isValid = false;
+            itemCheck.errors.push(serialError);
+            validation.errors.push(serialError);
             validation.isValid = false;
           } else {
             const itemSubtotal = machine.price * item.quantity;

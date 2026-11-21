@@ -52,7 +52,8 @@ const getAllOrders = async (req, res) => {
         { orderId: { $regex: search, $options: 'i' } },
         { 'customerInfo.name': { $regex: search, $options: 'i' } },
         { 'customerInfo.phone': { $regex: search, $options: 'i' } },
-        { 'items.name': { $regex: search, $options: 'i' } }
+        { 'items.name': { $regex: search, $options: 'i' } },
+        { 'items.serialNumbers': { $regex: search, $options: 'i' } }
       ];
     }
 

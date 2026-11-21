@@ -97,6 +97,12 @@ const orderItemSchema = new mongoose.Schema({
     trim: true,
     maxlength: [1200, 'Note cannot exceed 1200 characters'],
     default: ''
+  },
+  // Serial numbers of the units sold in this line (optional - machines
+  // without serial numbers, and older orders, have none)
+  serialNumbers: {
+    type: [{ type: String, trim: true, uppercase: true }],
+    default: []
   }
 }, { _id: false }); // Don't create separate _id for sub-documents
 
@@ -286,6 +292,7 @@ pastOrderSchema.index({ createdAt: -1 });
 pastOrderSchema.index({ 'customerInfo.phone': 1 });
 pastOrderSchema.index({ 'customerInfo.name': 'text' });
 pastOrderSchema.index({ 'items.machineId': 1 }); // Index for machine sales stats queries
+pastOrderSchema.index({ 'items.serialNumbers': 1 }); // Find the order a serial number was sold on
 
 // Pre-save middleware to generate a sequential order ID.
 // Format: YYMMM_PEIA_XXXX (e.g. 26JUL_PEIA_0001) where XXXX is a
