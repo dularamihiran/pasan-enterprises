@@ -11,7 +11,7 @@ import {
   TrashIcon
 } from '@heroicons/react/24/outline';
 import { generateQuotationPDF } from '../services/quotationService';
-import { machineAPI, customerAPI, handleApiError } from '../services/apiService';
+import { machineAPI, customerAPI, quotationAPI, handleApiError } from '../services/apiService';
 
 const Quotation = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -324,9 +324,30 @@ const Quotation = () => {
     try {
       setProcessing(true);
 
+      const validExtras = extras.filter(extra => extra.description && extra.amount > 0);
+
+      // 1. Save quotation to the database (images are not sent/saved)
+      let savedQuotation;
+      try {
+        const saveResponse = await quotationAPI.create({
+          customerInfo,
+          items: quotationItems.map(({ images, ...item }) => item),
+          extras: validExtras,
+          discountAmount: getDiscountAmount()
+        });
+        savedQuotation = saveResponse.data.data;
+      } catch (saveErr) {
+        const errorInfo = handleApiError(saveErr);
+        setError(`Failed to save quotation: ${saveErr.userMessage || errorInfo.message}`);
+        setTimeout(() => setError(''), 5000);
+        return;
+      }
+
+      // 2. Generate the PDF using the saved quotation number
       const quotationData = {
+        quotationNumber: savedQuotation.quotationNumber,
         items: quotationItems,
-        extras: extras.filter(extra => extra.description && extra.amount > 0),
+        extras: validExtras,
         customerInfo,
         subtotal: getSubtotal(),
         vatAmount: getVATAmount(),
@@ -337,7 +358,7 @@ const Quotation = () => {
       const result = await generateQuotationPDF(quotationData);
 
       if (result.success) {
-        setSuccessMessage('Quotation generated successfully!');
+        setSuccessMessage(`Quotation ${savedQuotation.quotationNumber} saved and generated successfully!`);
         
         // Reset form after successful generation
         setTimeout(() => {
@@ -354,7 +375,7 @@ const Quotation = () => {
           setSuccessMessage('');
         }, 2000);
       } else {
-        setError(result.message || 'Failed to generate quotation');
+        setError(`Quotation ${savedQuotation.quotationNumber} was saved, but the PDF failed to generate: ${result.message || 'unknown error'}`);
         setTimeout(() => setError(''), 5000);
       }
     } catch (err) {

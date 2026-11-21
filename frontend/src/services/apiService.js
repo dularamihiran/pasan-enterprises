@@ -186,6 +186,12 @@ export const refundAPI = {
   getStats: () => api.get('/refunds/stats/summary'),
 };
 
+// Quotation API
+export const quotationAPI = {
+  // Save a new quotation (creator is taken from the logged-in user's token)
+  create: (data) => api.post('/quotations', data),
+};
+
 // User API
 export const userAPI = {
   // Login user

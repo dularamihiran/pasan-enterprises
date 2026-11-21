@@ -104,8 +104,8 @@ export const generateQuotationPDF = async (quotationData) => {
     let yPosition = 20;
     let currentPage = 1;
     
-    // Generate unique quotation ID
-    const quotationId = `QT-${Date.now()}`;
+    // Use the quotation number saved in the database (fallback to a generated one)
+    const quotationId = quotationData.quotationNumber || `QT-${Date.now()}`;
     
     // Load logo
     let logoBase64 = null;
