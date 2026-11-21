@@ -41,7 +41,7 @@ const AddInventory = () => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+        const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
         console.log('Fetching categories from:', `${API_BASE_URL}/categories/enums`);
         
         const response = await fetch(`${API_BASE_URL}/categories/enums`);

@@ -60,7 +60,7 @@ const Refunds = () => {
   const loadRefunds = async (page = 1) => {
     try {
       setLoading(true);
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
       
       // Load both refund records and orders needing refunds with pagination
       const [refundsResponse, ordersResponse] = await Promise.all([
@@ -129,7 +129,7 @@ const Refunds = () => {
   // Load refund statistics
   const loadRefundStats = async () => {
     try {
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
       const response = await fetch(`${apiUrl}/refunds/stats/summary`);
       const data = await response.json();
 
@@ -207,7 +207,7 @@ const Refunds = () => {
   // Handle create refund from order
   const handleCreateRefund = async (order) => {
     try {
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
       
       // Get the actual order to find customer ID
       const orderResponse = await fetch(`${apiUrl}/past-orders/${order._id || order.orderId}`);
@@ -255,7 +255,7 @@ const Refunds = () => {
   // Handle save refund
   const handleSaveRefund = async () => {
     try {
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
       const response = await fetch(`${apiUrl}/refunds/${selectedRefund._id}`, {
         method: 'PUT',
         headers: {

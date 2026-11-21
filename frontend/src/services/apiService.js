@@ -9,7 +9,7 @@ const getBaseURL = () => {
   
   // Check if running on localhost (development)
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return 'http://localhost:5000/api';
+    return 'http://localhost:5001/api';
   }
   // Production URL fallback
   return 'https://pasan-enterprises-whk8.onrender.com/api';
