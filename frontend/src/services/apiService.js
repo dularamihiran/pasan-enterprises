@@ -190,6 +190,9 @@ export const refundAPI = {
 export const quotationAPI = {
   // Save a new quotation (creator is taken from the logged-in user's token)
   create: (data) => api.post('/quotations', data),
+
+  // Get saved quotations with pagination/search: { page, limit, search }
+  getAll: (params = {}) => api.get('/quotations', { params }),
 };
 
 // User API

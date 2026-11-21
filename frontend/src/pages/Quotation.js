@@ -8,9 +8,11 @@ import {
   DocumentArrowDownIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
-  TrashIcon
+  TrashIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline';
 import { generateQuotationPDF } from '../services/quotationService';
+import PastQuotations from '../components/PastQuotations';
 import { machineAPI, customerAPI, quotationAPI, handleApiError } from '../services/apiService';
 
 const Quotation = () => {
@@ -34,6 +36,7 @@ const Quotation = () => {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [showPastQuotations, setShowPastQuotations] = useState(false);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -392,13 +395,26 @@ const Quotation = () => {
     setSuccessMessage('');
   };
 
+  if (showPastQuotations) {
+    return <PastQuotations onBack={() => setShowPastQuotations(false)} />;
+  }
+
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-800 to-indigo-600 bg-clip-text text-transparent">
-          Create Quotation
-        </h1>
-        <p className="text-slate-600 mt-2 text-sm sm:text-base">Generate quotations for customers</p>
+      <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-800 to-indigo-600 bg-clip-text text-transparent">
+            Create Quotation
+          </h1>
+          <p className="text-slate-600 mt-2 text-sm sm:text-base">Generate quotations for customers</p>
+        </div>
+        <button
+          onClick={() => setShowPastQuotations(true)}
+          className="inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white rounded-xl hover:scale-105 transition-all duration-200 font-medium shadow-lg"
+        >
+          <ClockIcon className="w-5 h-5 mr-2" />
+          View Past Quotations
+        </button>
       </div>
 
       {error && (

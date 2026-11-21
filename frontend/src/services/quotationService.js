@@ -177,7 +177,8 @@ export const generateQuotationPDF = async (quotationData) => {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     
-    const currentDate = new Date();
+    // Use the original quotation date when regenerating a saved quotation
+    const currentDate = quotationData.quotationDate ? new Date(quotationData.quotationDate) : new Date();
     const quotationDate = `${currentDate.getDate().toString().padStart(2, '0')}/${(currentDate.getMonth() + 1).toString().padStart(2, '0')}/${currentDate.getFullYear()}`;
     const quotationTime = currentDate.toLocaleTimeString();
     

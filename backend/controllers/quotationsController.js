@@ -119,6 +119,55 @@ const createQuotation = async (req, res) => {
   }
 };
 
+const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// @desc    Get all quotations (newest first) with pagination and search
+// @route   GET /api/quotations?page=1&limit=10&search=
+// @access  Private (requires logged-in user)
+const getAllQuotations = async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+    const search = (req.query.search || '').trim();
+
+    const query = {};
+    if (search) {
+      const regex = { $regex: escapeRegex(search), $options: 'i' };
+      query.$or = [
+        { quotationNumber: regex },
+        { 'customerInfo.name': regex },
+        { 'customerInfo.phone': regex },
+        { 'createdBy.fullName': regex }
+      ];
+    }
+
+    const [quotations, total] = await Promise.all([
+      Quotation.find(query)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      Quotation.countDocuments(query)
+    ]);
+
+    res.json({
+      success: true,
+      data: quotations,
+      total,
+      page,
+      pages: Math.max(1, Math.ceil(total / limit))
+    });
+  } catch (error) {
+    console.error('Error fetching quotations:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch quotations',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
-  createQuotation
+  createQuotation,
+  getAllQuotations
 };
