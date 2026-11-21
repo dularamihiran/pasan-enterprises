@@ -52,6 +52,22 @@ const machineSchema = new mongoose.Schema({
   lastUpdatedBy: {
     type: String,
     trim: true
+  },
+  // Serial numbers of units still in stock, e.g. K1-PEIA-003-001
+  // (optional - older machines and machines added without serials have none)
+  availableSerialNumbers: {
+    type: [{ type: String, trim: true, uppercase: true }],
+    default: []
+  },
+  // Serial numbers of units that have been sold
+  soldSerialNumbers: {
+    type: [{
+      _id: false,
+      serialNumber: { type: String, required: true, trim: true, uppercase: true },
+      orderId: { type: String, trim: true },
+      soldAt: { type: Date, default: Date.now }
+    }],
+    default: []
   }
 }, {
   timestamps: true // This adds createdAt and updatedAt fields automatically
@@ -61,6 +77,10 @@ const machineSchema = new mongoose.Schema({
 // Note: itemId index is automatically created due to unique: true
 machineSchema.index({ category: 1 });
 machineSchema.index({ name: 'text', description: 'text' });
+// Lookups by serial number (not unique: empty arrays would collide;
+// uniqueness is enforced in the controller instead)
+machineSchema.index({ availableSerialNumbers: 1 });
+machineSchema.index({ 'soldSerialNumbers.serialNumber': 1 });
 
 // Virtual for stock status
 machineSchema.virtual('stockStatus').get(function() {

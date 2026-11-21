@@ -6,6 +6,7 @@ const {
   getMachineById,
   createMachine,
   updateMachine,
+  addSerialNumbers,
   deleteMachine,
   getMachineCategories
 } = require('../controllers/machinesController');
@@ -34,6 +35,11 @@ router.post('/', optionalAuth, createMachine);
 // @desc    Update machine (records lastUpdatedBy when a user is logged in)
 // @access  Public (optional auth)
 router.put('/:id', optionalAuth, updateMachine);
+
+// @route   POST /api/machines/:id/serial-numbers
+// @desc    Add serial numbers to an existing machine (records lastUpdatedBy)
+// @access  Public (optional auth)
+router.post('/:id/serial-numbers', optionalAuth, addSerialNumbers);
 
 // @route   DELETE /api/machines/:id
 // @desc    Delete machine

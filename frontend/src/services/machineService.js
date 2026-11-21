@@ -153,6 +153,33 @@ export const machineService = {
     }
   },
 
+  // Add serial numbers to an existing machine
+  // payload: { serialNumbers: string[], increaseQuantity: boolean }
+  addSerialNumbers: async (id, payload) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/machines/${id}/serial-numbers`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...getAuthHeader()
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to add serial numbers');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error adding serial numbers:', error);
+      throw error;
+    }
+  },
+
   // Delete machine
   deleteMachine: async (id) => {
     try {
