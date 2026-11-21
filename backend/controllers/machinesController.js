@@ -439,6 +439,100 @@ const addSerialNumbers = async (req, res) => {
   }
 };
 
+// @desc    Serial number inventory: machines with their available and sold
+//          serial numbers, plus stock-wide totals
+// @route   GET /api/machines/serial-inventory
+// @query   search  - matches item ID, name, or any serial number (available or sold)
+//          filter  - all | with-serials | untagged-stock | no-serials
+//          page, limit
+// @access  Public
+const getSerialInventory = async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 1), 100);
+    const search = (req.query.search || '').trim();
+    const filter = req.query.filter || 'all';
+
+    const availableCount = { $size: { $ifNull: ['$availableSerialNumbers', []] } };
+    const soldCount = { $size: { $ifNull: ['$soldSerialNumbers', []] } };
+
+    const conditions = [];
+
+    if (search) {
+      const pattern = { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
+      conditions.push({
+        $or: [
+          { itemId: pattern },
+          { name: pattern },
+          { availableSerialNumbers: pattern },
+          { 'soldSerialNumbers.serialNumber': pattern }
+        ]
+      });
+    }
+
+    switch (filter) {
+      case 'with-serials':
+        conditions.push({ $or: [{ 'availableSerialNumbers.0': { $exists: true } }, { 'soldSerialNumbers.0': { $exists: true } }] });
+        break;
+      case 'untagged-stock':
+        // Units in stock that don't have a serial number yet
+        conditions.push({ $expr: { $gt: ['$quantity', availableCount] } });
+        break;
+      case 'no-serials':
+        conditions.push({ 'availableSerialNumbers.0': { $exists: false } }, { 'soldSerialNumbers.0': { $exists: false } });
+        break;
+      default:
+        break;
+    }
+
+    const query = conditions.length ? { $and: conditions } : {};
+
+    const [machines, total, totals] = await Promise.all([
+      Machine.find(query)
+        .select('itemId name category quantity availableSerialNumbers soldSerialNumbers')
+        .sort({ itemId: 1 })
+        .skip((page - 1) * limit)
+        .limit(limit),
+      Machine.countDocuments(query),
+      Machine.aggregate([
+        {
+          $group: {
+            _id: null,
+            machines: { $sum: 1 },
+            machinesWithSerials: {
+              $sum: { $cond: [{ $gt: [{ $add: [availableCount, soldCount] }, 0] }, 1, 0] }
+            },
+            availableSerials: { $sum: availableCount },
+            soldSerials: { $sum: soldCount },
+            unitsWithoutSerials: {
+              $sum: { $max: [{ $subtract: [{ $ifNull: ['$quantity', 0] }, availableCount] }, 0] }
+            }
+          }
+        }
+      ])
+    ]);
+
+    res.json({
+      success: true,
+      count: machines.length,
+      total,
+      page,
+      pages: Math.max(Math.ceil(total / limit), 1),
+      summary: totals[0]
+        ? { ...totals[0], _id: undefined }
+        : { machines: 0, machinesWithSerials: 0, availableSerials: 0, soldSerials: 0, unitsWithoutSerials: 0 },
+      data: machines
+    });
+  } catch (error) {
+    console.error('Error fetching serial inventory:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+      error: error.message
+    });
+  }
+};
+
 // @desc    Delete machine
 // @route   DELETE /api/machines/:id
 // @access  Public
@@ -535,6 +629,7 @@ module.exports = {
   createMachine,
   updateMachine,
   addSerialNumbers,
+  getSerialInventory,
   deleteMachine,
   getMachineCategories,
   updateMachineStock

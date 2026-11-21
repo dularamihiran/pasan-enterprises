@@ -9,7 +9,8 @@ import {
   ChevronRightIcon,
   ChartBarIcon,
   BanknotesIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  TagIcon
 } from '@heroicons/react/24/outline';
 import authService from '../services/authService';
 
@@ -42,6 +43,12 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, activeTab, setActiveTab }) => {
         name: 'View Inventory',
         icon: EyeIcon,
         gradient: 'from-green-500 to-green-600',
+      },
+      {
+        id: 'serial-numbers',
+        name: 'Serial Numbers',
+        icon: TagIcon,
+        gradient: 'from-cyan-500 to-cyan-600',
       },
       {
         id: 'sell-item',

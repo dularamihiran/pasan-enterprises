@@ -7,6 +7,7 @@ const {
   createMachine,
   updateMachine,
   addSerialNumbers,
+  getSerialInventory,
   deleteMachine,
   getMachineCategories
 } = require('../controllers/machinesController');
@@ -15,6 +16,12 @@ const {
 // @desc    Get machine categories
 // @access  Public
 router.get('/categories', getMachineCategories);
+
+// @route   GET /api/machines/serial-inventory
+// @desc    Machines with available/sold serial numbers and totals
+// @access  Public
+// (must stay above /:id so "serial-inventory" isn't treated as an ID)
+router.get('/serial-inventory', getSerialInventory);
 
 // @route   GET /api/machines
 // @desc    Get all machines

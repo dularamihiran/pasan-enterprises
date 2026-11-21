@@ -153,6 +153,31 @@ export const machineService = {
     }
   },
 
+  // Serial number inventory (machines with available/sold serials + totals)
+  // params: { search, filter, page, limit }
+  getSerialInventory: async (params = {}) => {
+    try {
+      const cleanParams = {};
+      Object.keys(params).forEach(key => {
+        if (params[key] !== undefined && params[key] !== '' && params[key] !== 'all') {
+          cleanParams[key] = params[key];
+        }
+      });
+      const queryString = new URLSearchParams(cleanParams).toString();
+      const response = await fetch(`${API_BASE_URL}/machines/serial-inventory${queryString ? `?${queryString}` : ''}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch serial number inventory');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching serial inventory:', error);
+      throw error;
+    }
+  },
+
   // Add serial numbers to an existing machine
   // payload: { serialNumbers: string[], increaseQuantity: boolean }
   addSerialNumbers: async (id, payload) => {
