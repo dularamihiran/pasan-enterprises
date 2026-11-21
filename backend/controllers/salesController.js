@@ -24,7 +24,9 @@ const processSale = async (req, res) => {
       paidAmount = 0,
       paymentPeriodDays = 60,
       paymentMethod = 'cash',
-      chequeNumber = ''
+      chequeNumber = '',
+      deliveryType = 'immediate',
+      deliveryDate = null
     } = req.body;
 
     // Who made the sale: always the logged-in user (never trusted from the request body)
@@ -36,6 +38,26 @@ const processSale = async (req, res) => {
         success: false,
         message: 'Customer name and phone are required'
       });
+    }
+
+    // Delivery (warranty start) validation
+    if (!['immediate', 'later'].includes(deliveryType)) {
+      return res.status(400).json({
+        success: false,
+        message: "Delivery type must be 'immediate' or 'later'"
+      });
+    }
+    let resolvedDeliveryDate;
+    if (deliveryType === 'immediate') {
+      resolvedDeliveryDate = new Date(); // warranty starts on the sale date
+    } else if (deliveryDate) {
+      resolvedDeliveryDate = new Date(deliveryDate);
+      if (isNaN(resolvedDeliveryDate.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid delivery date'
+        });
+      }
     }
 
     if (!items || items.length === 0) {
@@ -211,7 +233,11 @@ const processSale = async (req, res) => {
       // Record initial payment history if any amount paid at creation
       paymentHistory: (paidAmount && paidAmount > 0) ? [{ amount: Math.round(paidAmount * 100) / 100, updatedBy: processedBy || 'System' }] : [],
       notes: notes.trim(),
-      processedBy
+      processedBy,
+      // Delivery / warranty start
+      deliveryType,
+      deliveryDate: resolvedDeliveryDate,
+      deliveryDateUpdatedBy: resolvedDeliveryDate ? processedBy : undefined
     });
 
     await order.save({ session });

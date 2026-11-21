@@ -12,6 +12,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { machineAPI, salesAPI, customerAPI, handleApiError } from '../services/apiService';
 import { generateInvoice } from '../services/invoiceService';
+import { dateInputToISO, toDateInputValue } from '../utils/delivery';
 
 const SellItem = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,6 +52,9 @@ const SellItem = () => {
   const [paymentPeriodDays, setPaymentPeriodDays] = useState(60);
     const [paymentMethod, setPaymentMethod] = useState('cash');
     const [chequeNumber, setChequeNumber] = useState('');
+  // Delivery / warranty start: 'immediate' (taken on the sale date) or 'later'
+  const [deliveryType, setDeliveryType] = useState('immediate');
+  const [deliveryDate, setDeliveryDate] = useState(''); // optional, YYYY-MM-DD, only for 'later'
   // Customer VAT Number (UI only - not stored in database)
   const [customerVatNumber, setCustomerVatNumber] = useState('');
 
@@ -465,6 +469,13 @@ const SellItem = () => {
         return;
       }
 
+      if (deliveryType === 'later' && deliveryDate && deliveryDate < toDateInputValue(new Date())) {
+        setError('Delivery date cannot be before today.');
+        setProcessing(false);
+        return;
+      }
+      const deliveryDateToSend = deliveryType === 'later' ? dateInputToISO(deliveryDate) : null;
+
       const saleData = {
         customerInfo: {
           name: customerInfo.name.trim(),
@@ -491,7 +502,10 @@ const SellItem = () => {
         paymentPeriodDays: paymentType === 'partial' ? (Number(paymentPeriodDays) || 60) : 0,
         remainingAmount: Math.round((finalTotal - paidToSend) * 100) / 100,
         paymentMethod,
-        chequeNumber: paymentMethod === 'cheque' ? chequeNumber.trim() : ''
+        chequeNumber: paymentMethod === 'cheque' ? chequeNumber.trim() : '',
+        // Delivery / warranty start
+        deliveryType,
+        deliveryDate: deliveryDateToSend
       };
 
       console.log('Processing sale with data:', saleData);
@@ -529,7 +543,10 @@ const SellItem = () => {
             paymentMethod,
             chequeNumber: paymentMethod === 'cheque' ? chequeNumber.trim() : '',
             paidAmount: paymentType === 'partial' ? paidToSend : getFinalTotal(),
-            remainingAmount: paymentType === 'partial' ? Math.round((finalTotal - paidToSend) * 100) / 100 : 0
+            remainingAmount: paymentType === 'partial' ? Math.round((finalTotal - paidToSend) * 100) / 100 : 0,
+            // Delivery / warranty start (for warranty wording on the invoice)
+            deliveryType,
+            deliveryDate: deliveryDateToSend
           };
 
           const invoiceResult = await generateInvoice(invoiceData, orderData);
@@ -559,7 +576,9 @@ const SellItem = () => {
         setPaymentPeriodDays(60);
         setPaymentMethod('cash');
         setChequeNumber('');
-        
+        setDeliveryType('immediate');
+        setDeliveryDate('');
+
         // Refresh machines to get updated stock
         await fetchMachines();
         
@@ -1189,6 +1208,40 @@ const SellItem = () => {
             </div>
           )}
 
+        </div>
+
+        {/* Delivery / Warranty Start */}
+        <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+          <div className="md:col-span-1">
+            <label className="block text-sm font-medium text-slate-700 mb-2">Delivery (Warranty Start)</label>
+            <select
+              value={deliveryType}
+              onChange={(e) => {
+                setDeliveryType(e.target.value);
+                if (e.target.value === 'immediate') setDeliveryDate('');
+              }}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white/50"
+            >
+              <option value="immediate">Delivered today (warranty starts now)</option>
+              <option value="later">Not delivered yet (warranty starts on delivery)</option>
+            </select>
+          </div>
+
+          {deliveryType === 'later' && (
+            <div className="md:col-span-1">
+              <label className="block text-sm font-medium text-slate-700 mb-2">Delivery Date (Optional)</label>
+              <input
+                type="date"
+                value={deliveryDate}
+                min={toDateInputValue(new Date())}
+                onChange={(e) => setDeliveryDate(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white/50"
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Leave empty if not finalized - it can be set later on the Past Orders page.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Complete Sale Button */}

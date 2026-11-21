@@ -12,7 +12,8 @@ const {
   returnItem,
   updateOrder,
   getMachineSalesStats,
-  updatePayment
+  updatePayment,
+  updateDeliveryDate
 } = require('../controllers/ordersController');
 
 // @route   GET /api/past-orders/stats
@@ -54,6 +55,11 @@ router.patch('/:id/status', updateOrderStatus);
 // @desc    Update/Add payment for an order (recorded against the logged-in user)
 // @access  Private
 router.patch('/:id/payment', authenticateToken, updatePayment);
+
+// @route   PATCH /api/past-orders/:id/delivery
+// @desc    Set/clear the delivery date (warranty start date) of an order
+// @access  Private
+router.patch('/:id/delivery', authenticateToken, updateDeliveryDate);
 
 // @route   PUT /api/past-orders/return-item/:orderId
 // @desc    Return an item from an order

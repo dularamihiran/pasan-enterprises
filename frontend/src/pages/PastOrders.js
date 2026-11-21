@@ -17,6 +17,8 @@ import {
 } from '@heroicons/react/24/outline';
 import { pastOrdersAPI, handleApiError } from '../services/apiService';
 import { generateInvoice } from '../services/invoiceService';
+import DeliveryDateEditor from '../components/DeliveryDateEditor';
+import { getWarrantyStartDate, isDeliveryPending } from '../utils/delivery';
 import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 
@@ -632,9 +634,12 @@ const PastOrders = () => {
         finalTotal: totals.finalTotal,
         paymentType: order.paymentType || (order.paymentStatus === 'Paid' || order.paymentStatus === 'full' ? 'full' : 'partial'),
         paidAmount: order.paidAmount || 0,
-        remainingAmount: order.remainingAmount || 0
+        remainingAmount: order.remainingAmount || 0,
+        // Delivery / warranty start (for warranty wording on the invoice)
+        deliveryType: order.deliveryType,
+        deliveryDate: order.deliveryDate
       };
-      
+
       const orderData = {
         orderId: order.orderId
       };
@@ -822,10 +827,15 @@ const PastOrders = () => {
     return `${orderNum} | ${formattedDate}`;
   };
 
-  // Calculate warranty expiry date and remaining time
-  const getWarrantyInfo = (orderDate, warrantyMonths) => {
-    const soldDate = new Date(orderDate);
-    const expiryDate = new Date(soldDate);
+  // Calculate warranty expiry date and remaining time.
+  // Warranty starts on the delivery date (or sale date for immediate delivery).
+  // Returns { notStarted: true } when delivery is still pending.
+  const getWarrantyInfo = (order, warrantyMonths) => {
+    const startDate = getWarrantyStartDate(order);
+    if (!startDate) {
+      return { notStarted: true };
+    }
+    const expiryDate = new Date(startDate);
     expiryDate.setMonth(expiryDate.getMonth() + warrantyMonths);
     
     const today = new Date();
@@ -841,6 +851,21 @@ const PastOrders = () => {
       isExpiringSoon,
       formattedExpiry: formatDate(expiryDate)
     };
+  };
+
+  // Apply updated delivery fields to the order in the list and the details modal
+  const handleDeliveryUpdated = (orderId, deliveryFields) => {
+    const apply = (o) => {
+      if (!o || o._id !== orderId) return o;
+      const next = { ...o, ...deliveryFields };
+      if (!deliveryFields.deliveryDate) {
+        delete next.deliveryDate;
+        delete next.deliveryDateUpdatedBy;
+      }
+      return next;
+    };
+    setOrders((prev) => prev.map(apply));
+    setSelectedOrder((prev) => apply(prev));
   };
 
   const getStatusColor = (status) => {
@@ -1119,6 +1144,12 @@ const PastOrders = () => {
                                 Has Returns
                               </span>
                             )}
+                            {isDeliveryPending(order) && order.orderStatus !== 'Cancelled' && (
+                              <span className="ml-3 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                <TruckIcon className="w-3 h-3 mr-1" />
+                                Delivery Pending
+                              </span>
+                            )}
                           </h3>
                           <div className="flex items-center space-x-4 mt-1">
                             <div className="flex items-center space-x-2">
@@ -1302,6 +1333,12 @@ const PastOrders = () => {
                             {order.customerInfo.email && <p><span className="font-medium">Email:</span> {order.customerInfo.email}</p>}
                             {order.customerInfo.nic && <p><span className="font-medium">NIC:</span> {order.customerInfo.nic}</p>}
                           </div>
+                          <div className="mt-4">
+                            <DeliveryDateEditor
+                              order={order}
+                              onUpdated={(fields) => handleDeliveryUpdated(order._id, fields)}
+                            />
+                          </div>
                         </div>
                         
                         {/* Items */}
@@ -1354,7 +1391,21 @@ const PastOrders = () => {
                                     })())}</span>
                                   </div>
                                   {item.warrantyMonths !== undefined && (() => {
-                                    const warrantyInfo = getWarrantyInfo(order.createdAt, item.warrantyMonths);
+                                    const warrantyInfo = getWarrantyInfo(order, item.warrantyMonths);
+                                    if (warrantyInfo.notStarted) {
+                                      return (
+                                        <>
+                                          <div className="flex justify-between">
+                                            <span className="text-slate-600">Warranty:</span>
+                                            <span className="text-slate-900">{item.warrantyMonths} months</span>
+                                          </div>
+                                          <div className="flex justify-between font-medium text-amber-600">
+                                            <span>Status:</span>
+                                            <span>Starts on delivery</span>
+                                          </div>
+                                        </>
+                                      );
+                                    }
                                     return (
                                       <>
                                         <div className="flex justify-between">
@@ -1713,7 +1764,13 @@ const PastOrders = () => {
                   )}
                 </div>
               </div>
-              
+
+              {/* Delivery & Warranty Start */}
+              <DeliveryDateEditor
+                order={selectedOrder}
+                onUpdated={(fields) => handleDeliveryUpdated(selectedOrder._id, fields)}
+              />
+
               {/* Order Items */}
               <div>
                 <h3 className="text-lg font-semibold text-slate-900 mb-3">Order Items</h3>
@@ -1782,7 +1839,25 @@ const PastOrders = () => {
                         )}
                         
                         {item.warrantyMonths !== undefined && (() => {
-                          const warrantyInfo = getWarrantyInfo(selectedOrder.createdAt, item.warrantyMonths);
+                          const warrantyInfo = getWarrantyInfo(selectedOrder, item.warrantyMonths);
+                          if (warrantyInfo.notStarted) {
+                            return (
+                              <div className="col-span-2 border-t border-slate-200 pt-2 mt-2">
+                                <p className="text-slate-700 font-medium mb-2">Warranty Information</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <p className="text-slate-500">Duration:</p>
+                                    <p className="font-medium">{item.warrantyMonths} months</p>
+                                  </div>
+                                  <div className="col-span-2">
+                                    <div className="px-3 py-2 rounded-lg text-center font-medium bg-amber-100 text-amber-700">
+                                      Not delivered yet - warranty starts on the delivery date
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }
                           return (
                             <>
                               <div className="col-span-2 border-t border-slate-200 pt-2 mt-2">

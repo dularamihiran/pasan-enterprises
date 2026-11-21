@@ -163,6 +163,8 @@ export const pastOrdersAPI = {
   update: (orderId, data) => api.put(`/past-orders/${orderId}`, data),
   // Update payment for an order
   updatePayment: (orderId, data) => api.patch(`/past-orders/${orderId}/payment`, data),
+  // Set/clear delivery date (warranty start). data: { deliveryDate: 'YYYY-MM-DD' | null }
+  updateDelivery: (orderId, data) => api.patch(`/past-orders/${orderId}/delivery`, data),
 };
 
 // Refund API

@@ -247,6 +247,24 @@ const pastOrderSchema = new mongoose.Schema({
     enum: ['Completed', 'Processing', 'Cancelled', 'Returned'],
     default: 'Completed'
   },
+  // Delivery / warranty start
+  // 'immediate' -> customer took the items at the time of sale (warranty starts on sale date)
+  // 'later'     -> items delivered later; warranty starts on deliveryDate (once set)
+  deliveryType: {
+    type: String,
+    enum: ['immediate', 'later'],
+    default: 'immediate'
+  },
+  // Date the customer received the items (warranty start date). May be empty
+  // for 'later' deliveries until the date is finalized.
+  deliveryDate: {
+    type: Date
+  },
+  // Full name of the user who last set the delivery date
+  deliveryDateUpdatedBy: {
+    type: String,
+    trim: true
+  },
   notes: {
     type: String,
     trim: true,
