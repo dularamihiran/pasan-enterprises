@@ -41,6 +41,17 @@ const machineSchema = new mongoose.Schema({
     required: [true, 'Quantity is required'],
     min: [0, 'Quantity cannot be negative'],
     default: 0
+  },
+  // Full name of the user who added the machine (optional - machines may
+  // also be inserted by another system that does not set this)
+  addedBy: {
+    type: String,
+    trim: true
+  },
+  // Full name of the user who last added/updated the machine (optional)
+  lastUpdatedBy: {
+    type: String,
+    trim: true
   }
 }, {
   timestamps: true // This adds createdAt and updatedAt fields automatically

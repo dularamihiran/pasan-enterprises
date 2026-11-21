@@ -6,7 +6,7 @@ const { updateMachineStock } = require('./machinesController');
 
 // @desc    Process a sale
 // @route   POST /api/sales
-// @access  Public
+// @access  Private (requires logged-in user)
 const processSale = async (req, res) => {
   const session = await require('mongoose').startSession();
   
@@ -18,7 +18,6 @@ const processSale = async (req, res) => {
       items, 
       extras = [], 
       notes = '',
-      processedBy = 'System',
       vatRate = 15,
       discountAmount = 0,
       paymentType = 'full',
@@ -27,6 +26,9 @@ const processSale = async (req, res) => {
       paymentMethod = 'cash',
       chequeNumber = ''
     } = req.body;
+
+    // Who made the sale: always the logged-in user (never trusted from the request body)
+    const processedBy = req.user?.fullName || 'System';
 
     // Validate required fields
     if (!customerInfo || !customerInfo.name || !customerInfo.phone) {

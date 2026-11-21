@@ -10,6 +10,12 @@ const getBaseURL = () => {
 
 const API_BASE_URL = getBaseURL();
 
+// Auth header so the backend can record which user added/updated a machine
+const getAuthHeader = () => {
+  const token = sessionStorage.getItem('authToken');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
 // Machine API Service
 export const machineService = {
   // Get all machines
@@ -96,7 +102,8 @@ export const machineService = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          ...getAuthHeader()
         },
         body: JSON.stringify(machineData),
       });
@@ -128,6 +135,7 @@ export const machineService = {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          ...getAuthHeader()
         },
         body: JSON.stringify(machineData),
       });

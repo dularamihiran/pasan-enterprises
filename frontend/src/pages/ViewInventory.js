@@ -562,6 +562,10 @@ const ViewInventory = () => {
                   <p className="text-slate-800 bg-slate-50 p-3 rounded-lg">{formatDate(selectedMachine.updatedAt)}</p>
                 </div>
               </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Last Updated By</label>
+                <p className="text-slate-800 bg-slate-50 p-3 rounded-lg">{selectedMachine.lastUpdatedBy || '-'}</p>
+              </div>
 
               {/* Sold Items Count Section */}
               <div className="pt-6 border-t border-slate-200">

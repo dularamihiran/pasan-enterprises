@@ -484,7 +484,7 @@ const SellItem = () => {
         vatRate: vatRate, // Keep for reference
         discountAmount: getDiscountAmount(),
         notes: '',
-        processedBy: 'Admin',
+        // processedBy is set on the server from the logged-in user
         // Payment metadata
         paymentType: paymentType,
         paidAmount: Math.round(paidToSend * 100) / 100,

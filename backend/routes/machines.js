@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { optionalAuth } = require('../middleware/auth');
 const {
   getAllMachines,
   getMachineById,
@@ -25,14 +26,14 @@ router.get('/', getAllMachines);
 router.get('/:id', getMachineById);
 
 // @route   POST /api/machines
-// @desc    Create new machine
-// @access  Public
-router.post('/', createMachine);
+// @desc    Create new machine (records addedBy when a user is logged in)
+// @access  Public (optional auth)
+router.post('/', optionalAuth, createMachine);
 
 // @route   PUT /api/machines/:id
-// @desc    Update machine
-// @access  Public
-router.put('/:id', updateMachine);
+// @desc    Update machine (records lastUpdatedBy when a user is logged in)
+// @access  Public (optional auth)
+router.put('/:id', optionalAuth, updateMachine);
 
 // @route   DELETE /api/machines/:id
 // @desc    Delete machine

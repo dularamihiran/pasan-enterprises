@@ -178,6 +178,9 @@ const createMachine = async (req, res) => {
       });
     }
 
+    // Logged-in user's name (optional - set by optionalAuth middleware)
+    const userFullName = req.user?.fullName;
+
     // Create new machine with already-trimmed values
     const machine = new Machine({
       itemId,
@@ -185,7 +188,8 @@ const createMachine = async (req, res) => {
       category,
       description,
       price,
-      quantity
+      quantity,
+      ...(userFullName && { addedBy: userFullName, lastUpdatedBy: userFullName })
     });
 
     const savedMachine = await machine.save();
@@ -243,9 +247,19 @@ const updateMachine = async (req, res) => {
       }
     }
 
+    // Record who made this update. If no logged-in user is available, clear the
+    // field so an old name isn't shown next to the new "Last Updated" date.
+    const userFullName = req.user?.fullName;
+    const update = { itemId, name, category, description, price, quantity };
+    if (userFullName) {
+      update.lastUpdatedBy = userFullName;
+    } else {
+      update.$unset = { lastUpdatedBy: 1 };
+    }
+
     const machine = await Machine.findByIdAndUpdate(
       req.params.id,
-      { itemId, name, category, description, price, quantity },
+      update,
       { new: true, runValidators: true }
     );
 

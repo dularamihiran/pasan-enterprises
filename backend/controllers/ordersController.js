@@ -1013,7 +1013,7 @@ const getMachineSalesStats = async (req, res) => {
 
 // @desc    Update payment for an order (add payment towards partial)
 // @route   PATCH /api/past-orders/:id/payment
-// @access  Public
+// @access  Private (requires logged-in user)
 const updatePayment = async (req, res) => {
   try {
     const orderId = req.params.id;
@@ -1044,7 +1044,7 @@ const updatePayment = async (req, res) => {
 
     // Append to payment history
     order.paymentHistory = order.paymentHistory || [];
-    order.paymentHistory.push({ amount: Math.round(added * 100) / 100, updatedBy: req.user?.name || 'System' });
+    order.paymentHistory.push({ amount: Math.round(added * 100) / 100, updatedBy: req.user?.fullName || 'System' });
 
     // Update paymentStatus
     order.paymentStatus = (updatedRemaining === 0) ? 'full' : 'partial';
