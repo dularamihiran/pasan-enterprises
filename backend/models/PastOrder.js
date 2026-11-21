@@ -97,6 +97,12 @@ const orderItemSchema = new mongoose.Schema({
     trim: true,
     maxlength: [1200, 'Note cannot exceed 1200 characters'],
     default: ''
+  },
+  // Serial numbers of the units sold in this line (optional - machines
+  // without serial numbers, and older orders, have none)
+  serialNumbers: {
+    type: [{ type: String, trim: true, uppercase: true }],
+    default: []
   }
 }, { _id: false }); // Don't create separate _id for sub-documents
 
@@ -247,6 +253,24 @@ const pastOrderSchema = new mongoose.Schema({
     enum: ['Completed', 'Processing', 'Cancelled', 'Returned'],
     default: 'Completed'
   },
+  // Delivery / warranty start
+  // 'immediate' -> customer took the items at the time of sale (warranty starts on sale date)
+  // 'later'     -> items delivered later; warranty starts on deliveryDate (once set)
+  deliveryType: {
+    type: String,
+    enum: ['immediate', 'later'],
+    default: 'immediate'
+  },
+  // Date the customer received the items (warranty start date). May be empty
+  // for 'later' deliveries until the date is finalized.
+  deliveryDate: {
+    type: Date
+  },
+  // Full name of the user who last set the delivery date
+  deliveryDateUpdatedBy: {
+    type: String,
+    trim: true
+  },
   notes: {
     type: String,
     trim: true,
@@ -268,6 +292,7 @@ pastOrderSchema.index({ createdAt: -1 });
 pastOrderSchema.index({ 'customerInfo.phone': 1 });
 pastOrderSchema.index({ 'customerInfo.name': 'text' });
 pastOrderSchema.index({ 'items.machineId': 1 }); // Index for machine sales stats queries
+pastOrderSchema.index({ 'items.serialNumbers': 1 }); // Find the order a serial number was sold on
 
 // Pre-save middleware to generate a sequential order ID.
 // Format: YYMMM_PEIA_XXXX (e.g. 26JUL_PEIA_0001) where XXXX is a

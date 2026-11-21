@@ -95,7 +95,7 @@ endpoints=(
 
 for endpoint in "${endpoints[@]}"; do
     echo "Testing: /api/dashboard/$endpoint"
-    response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5000/api/dashboard/$endpoint)
+    response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5001/api/dashboard/$endpoint)
     if [ "$response" = "200" ]; then
         echo -e "${GREEN}✓ $endpoint - OK (200)${NC}"
     elif [ "$response" = "404" ]; then

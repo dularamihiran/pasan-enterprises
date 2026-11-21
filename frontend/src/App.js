@@ -6,6 +6,7 @@ import { userAPI } from './services/apiService';
 // Code splitting: Lazy load pages to reduce initial bundle size
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const ViewInventory = lazy(() => import('./pages/ViewInventory'));
+const SerialNumbers = lazy(() => import('./pages/SerialNumbers'));
 const SellItem = lazy(() => import('./pages/SellItem'));
 const Quotation = lazy(() => import('./pages/Quotation'));
 const PastOrders = lazy(() => import('./pages/PastOrders'));
@@ -97,6 +98,8 @@ function App() {
           );
         case 'view-inventory':
           return <ViewInventory />;
+        case 'serial-numbers':
+          return <SerialNumbers />;
         case 'sell-item':
           return <SellItem />;
         case 'quotation':

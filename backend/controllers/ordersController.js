@@ -52,7 +52,8 @@ const getAllOrders = async (req, res) => {
         { orderId: { $regex: search, $options: 'i' } },
         { 'customerInfo.name': { $regex: search, $options: 'i' } },
         { 'customerInfo.phone': { $regex: search, $options: 'i' } },
-        { 'items.name': { $regex: search, $options: 'i' } }
+        { 'items.name': { $regex: search, $options: 'i' } },
+        { 'items.serialNumbers': { $regex: search, $options: 'i' } }
       ];
     }
 
@@ -1013,7 +1014,7 @@ const getMachineSalesStats = async (req, res) => {
 
 // @desc    Update payment for an order (add payment towards partial)
 // @route   PATCH /api/past-orders/:id/payment
-// @access  Public
+// @access  Private (requires logged-in user)
 const updatePayment = async (req, res) => {
   try {
     const orderId = req.params.id;
@@ -1044,7 +1045,7 @@ const updatePayment = async (req, res) => {
 
     // Append to payment history
     order.paymentHistory = order.paymentHistory || [];
-    order.paymentHistory.push({ amount: Math.round(added * 100) / 100, updatedBy: req.user?.name || 'System' });
+    order.paymentHistory.push({ amount: Math.round(added * 100) / 100, updatedBy: req.user?.fullName || 'System' });
 
     // Update paymentStatus
     order.paymentStatus = (updatedRemaining === 0) ? 'full' : 'partial';
@@ -1072,7 +1073,65 @@ const updatePayment = async (req, res) => {
   }
 };
 
+// @desc    Set (or clear) the delivery date of an order. Warranty is
+//          calculated from this date.
+// @route   PATCH /api/past-orders/:id/delivery   body: { deliveryDate: 'YYYY-MM-DD' | null }
+// @access  Private (requires logged-in user)
+const updateDeliveryDate = async (req, res) => {
+  try {
+    const { deliveryDate } = req.body;
+
+    const order = await PastOrder.findById(req.params.id).select('createdAt deliveryType');
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    let update;
+    if (deliveryDate === null || deliveryDate === '') {
+      // Clear the date -> delivery pending again (warranty not started)
+      update = {
+        $set: { deliveryType: 'later' },
+        $unset: { deliveryDate: 1, deliveryDateUpdatedBy: 1 }
+      };
+    } else {
+      const parsed = new Date(deliveryDate);
+      if (isNaN(parsed.getTime())) {
+        return res.status(400).json({ success: false, message: 'Invalid delivery date' });
+      }
+      // Delivery cannot be before the sale (1-day tolerance for timezone differences)
+      const ONE_DAY = 24 * 60 * 60 * 1000;
+      if (parsed.getTime() < new Date(order.createdAt).getTime() - ONE_DAY) {
+        return res.status(400).json({ success: false, message: 'Delivery date cannot be before the order date' });
+      }
+      update = {
+        $set: {
+          deliveryType: 'later',
+          deliveryDate: parsed,
+          deliveryDateUpdatedBy: req.user?.fullName || 'System'
+        }
+      };
+    }
+
+    // Use a direct update so the order's pre-save total recalculation doesn't run
+    const updatedOrder = await PastOrder.findByIdAndUpdate(req.params.id, update, { new: true })
+      .populate('customerId', 'name phone email');
+
+    res.json({
+      success: true,
+      message: 'Delivery date updated successfully',
+      data: { order: updatedOrder }
+    });
+  } catch (error) {
+    console.error('Error updating delivery date:', error);
+    if (error.kind === 'ObjectId') {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+    res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+  }
+};
+
 module.exports = {
+  updateDeliveryDate,
   getAllOrders,
   getOrderById,
   getOrderByOrderId,

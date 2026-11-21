@@ -1,5 +1,43 @@
 const Machine = require('../models/Machine');
 
+// <shipment>-PEIA-<box>-<machine>, e.g. K1-PEIA-003-001
+const SERIAL_NUMBER_PATTERN = /^[A-Z0-9]+-PEIA-\d{3,}-\d{3,}$/;
+
+const normalizeSerialNumbers = (list) => list.map(sn => String(sn).trim().toUpperCase());
+
+// Returns an error message, or null if the serial numbers are well-formed,
+// unique within the list, and not already used by any machine (available or sold)
+const checkSerialNumbers = async (serialNumbers) => {
+  const invalid = serialNumbers.filter(sn => !SERIAL_NUMBER_PATTERN.test(sn));
+  if (invalid.length > 0) {
+    return `Invalid serial number format: ${invalid.join(', ')}. Expected format like K1-PEIA-003-001`;
+  }
+
+  const duplicates = serialNumbers.filter((sn, i) => serialNumbers.indexOf(sn) !== i);
+  if (duplicates.length > 0) {
+    return `Duplicate serial numbers: ${[...new Set(duplicates)].join(', ')}`;
+  }
+
+  const machinesWithSerials = await Machine.find({
+    $or: [
+      { availableSerialNumbers: { $in: serialNumbers } },
+      { 'soldSerialNumbers.serialNumber': { $in: serialNumbers } }
+    ]
+  }).select('itemId availableSerialNumbers soldSerialNumbers');
+
+  if (machinesWithSerials.length > 0) {
+    const taken = new Set();
+    machinesWithSerials.forEach(m => {
+      m.availableSerialNumbers.forEach(sn => taken.add(sn));
+      m.soldSerialNumbers.forEach(s => taken.add(s.serialNumber));
+    });
+    const conflicts = serialNumbers.filter(sn => taken.has(sn));
+    return `These serial numbers already exist: ${conflicts.join(', ')}`;
+  }
+
+  return null;
+};
+
 // @desc    Get all machines
 // @route   GET /api/machines
 // @access  Public
@@ -178,6 +216,27 @@ const createMachine = async (req, res) => {
       });
     }
 
+    // Optional serial numbers (one per unit), e.g. K1-PEIA-003-001
+    let serialNumbers = [];
+    if (Array.isArray(req.body.serialNumbers) && req.body.serialNumbers.length > 0) {
+      serialNumbers = normalizeSerialNumbers(req.body.serialNumbers);
+
+      if (serialNumbers.length !== Number(quantity)) {
+        return res.status(400).json({
+          success: false,
+          message: `Number of serial numbers (${serialNumbers.length}) must match quantity (${quantity})`
+        });
+      }
+
+      const serialError = await checkSerialNumbers(serialNumbers);
+      if (serialError) {
+        return res.status(400).json({ success: false, message: serialError });
+      }
+    }
+
+    // Logged-in user's name (optional - set by optionalAuth middleware)
+    const userFullName = req.user?.fullName;
+
     // Create new machine with already-trimmed values
     const machine = new Machine({
       itemId,
@@ -185,7 +244,9 @@ const createMachine = async (req, res) => {
       category,
       description,
       price,
-      quantity
+      quantity,
+      availableSerialNumbers: serialNumbers,
+      ...(userFullName && { addedBy: userFullName, lastUpdatedBy: userFullName })
     });
 
     const savedMachine = await machine.save();
@@ -243,9 +304,19 @@ const updateMachine = async (req, res) => {
       }
     }
 
+    // Record who made this update. If no logged-in user is available, clear the
+    // field so an old name isn't shown next to the new "Last Updated" date.
+    const userFullName = req.user?.fullName;
+    const update = { itemId, name, category, description, price, quantity };
+    if (userFullName) {
+      update.lastUpdatedBy = userFullName;
+    } else {
+      update.$unset = { lastUpdatedBy: 1 };
+    }
+
     const machine = await Machine.findByIdAndUpdate(
       req.params.id,
-      { itemId, name, category, description, price, quantity },
+      update,
       { new: true, runValidators: true }
     );
 
@@ -280,6 +351,180 @@ const updateMachine = async (req, res) => {
       });
     }
     
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Add serial numbers to an existing machine
+// @route   POST /api/machines/:id/serial-numbers
+// @body    { serialNumbers: string[], increaseQuantity: boolean }
+//          increaseQuantity = false -> serials are for units already in stock
+//                                      (quantity unchanged)
+//          increaseQuantity = true  -> serials are for newly arrived units
+//                                      (quantity increases by the serial count)
+// @access  Public (optional auth)
+const addSerialNumbers = async (req, res) => {
+  try {
+    if (!Array.isArray(req.body.serialNumbers) || req.body.serialNumbers.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'At least one serial number is required'
+      });
+    }
+
+    const serialNumbers = normalizeSerialNumbers(req.body.serialNumbers);
+    const increaseQuantity = req.body.increaseQuantity === true;
+
+    const machine = await Machine.findById(req.params.id);
+    if (!machine) {
+      return res.status(404).json({
+        success: false,
+        message: 'Machine not found'
+      });
+    }
+
+    if (!increaseQuantity) {
+      const unitsWithoutSerials = Math.max(machine.quantity - machine.availableSerialNumbers.length, 0);
+      if (serialNumbers.length > unitsWithoutSerials) {
+        return res.status(400).json({
+          success: false,
+          message: `${machine.itemId} has ${machine.quantity} unit(s) in stock and ${machine.availableSerialNumbers.length} already have serial numbers, so only ${unitsWithoutSerials} more can be added. To add serials for newly arrived units, choose to increase the stock quantity.`
+        });
+      }
+    }
+
+    const serialError = await checkSerialNumbers(serialNumbers);
+    if (serialError) {
+      return res.status(400).json({ success: false, message: serialError });
+    }
+
+    // Atomic update; avoids re-validating unrelated fields on older documents
+    const update = { $push: { availableSerialNumbers: { $each: serialNumbers } } };
+    if (increaseQuantity) {
+      update.$inc = { quantity: serialNumbers.length };
+    }
+    const userFullName = req.user?.fullName;
+    if (userFullName) {
+      update.$set = { lastUpdatedBy: userFullName };
+    } else {
+      update.$unset = { lastUpdatedBy: 1 };
+    }
+
+    const updatedMachine = await Machine.findByIdAndUpdate(req.params.id, update, { new: true });
+
+    res.json({
+      success: true,
+      message: `${serialNumbers.length} serial number(s) added to ${updatedMachine.itemId}`,
+      data: updatedMachine
+    });
+  } catch (error) {
+    console.error('Error adding serial numbers:', error);
+
+    if (error.kind === 'ObjectId') {
+      return res.status(404).json({
+        success: false,
+        message: 'Machine not found'
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Serial number inventory: machines with their available and sold
+//          serial numbers, plus stock-wide totals
+// @route   GET /api/machines/serial-inventory
+// @query   search  - matches item ID, name, or any serial number (available or sold)
+//          filter  - all | with-serials | untagged-stock | no-serials
+//          page, limit
+// @access  Public
+const getSerialInventory = async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 1), 100);
+    const search = (req.query.search || '').trim();
+    const filter = req.query.filter || 'all';
+
+    const availableCount = { $size: { $ifNull: ['$availableSerialNumbers', []] } };
+    const soldCount = { $size: { $ifNull: ['$soldSerialNumbers', []] } };
+
+    const conditions = [];
+
+    if (search) {
+      const pattern = { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
+      conditions.push({
+        $or: [
+          { itemId: pattern },
+          { name: pattern },
+          { availableSerialNumbers: pattern },
+          { 'soldSerialNumbers.serialNumber': pattern }
+        ]
+      });
+    }
+
+    switch (filter) {
+      case 'with-serials':
+        conditions.push({ $or: [{ 'availableSerialNumbers.0': { $exists: true } }, { 'soldSerialNumbers.0': { $exists: true } }] });
+        break;
+      case 'untagged-stock':
+        // Units in stock that don't have a serial number yet
+        conditions.push({ $expr: { $gt: ['$quantity', availableCount] } });
+        break;
+      case 'no-serials':
+        conditions.push({ 'availableSerialNumbers.0': { $exists: false } }, { 'soldSerialNumbers.0': { $exists: false } });
+        break;
+      default:
+        break;
+    }
+
+    const query = conditions.length ? { $and: conditions } : {};
+
+    const [machines, total, totals] = await Promise.all([
+      Machine.find(query)
+        .select('itemId name category quantity availableSerialNumbers soldSerialNumbers')
+        .sort({ itemId: 1 })
+        .skip((page - 1) * limit)
+        .limit(limit),
+      Machine.countDocuments(query),
+      Machine.aggregate([
+        {
+          $group: {
+            _id: null,
+            machines: { $sum: 1 },
+            machinesWithSerials: {
+              $sum: { $cond: [{ $gt: [{ $add: [availableCount, soldCount] }, 0] }, 1, 0] }
+            },
+            availableSerials: { $sum: availableCount },
+            soldSerials: { $sum: soldCount },
+            unitsWithoutSerials: {
+              $sum: { $max: [{ $subtract: [{ $ifNull: ['$quantity', 0] }, availableCount] }, 0] }
+            }
+          }
+        }
+      ])
+    ]);
+
+    res.json({
+      success: true,
+      count: machines.length,
+      total,
+      page,
+      pages: Math.max(Math.ceil(total / limit), 1),
+      summary: totals[0]
+        ? { ...totals[0], _id: undefined }
+        : { machines: 0, machinesWithSerials: 0, availableSerials: 0, soldSerials: 0, unitsWithoutSerials: 0 },
+      data: machines
+    });
+  } catch (error) {
+    console.error('Error fetching serial inventory:', error);
     res.status(500).json({
       success: false,
       message: 'Server Error',
@@ -383,6 +628,8 @@ module.exports = {
   getMachineById,
   createMachine,
   updateMachine,
+  addSerialNumbers,
+  getSerialInventory,
   deleteMachine,
   getMachineCategories,
   updateMachineStock

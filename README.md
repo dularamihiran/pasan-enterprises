@@ -50,7 +50,7 @@ cd backend
 npm install
 # create a .env file with:
 # MONGODB_URI=<your-mongo-uri>
-# PORT=5000
+# PORT=5001
 npm start
 
 3. Setup Frontend
@@ -61,7 +61,7 @@ npm start
 
 Frontend runs on http://localhost:3000
 
-Backend API runs on https://16.16.24.8:5000
+Backend API runs on https://16.16.24.8:5001
 
 Usage
 

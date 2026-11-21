@@ -2,13 +2,19 @@
 const getBaseURL = () => {
   // Check if running on localhost (development)
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return 'http://localhost:5000/api';
+    return 'http://localhost:5001/api';
   }
   // Production URL
   return 'https://pasan-enterprises-whk8.onrender.com/api';
 };
 
 const API_BASE_URL = getBaseURL();
+
+// Auth header so the backend can record which user added/updated a machine
+const getAuthHeader = () => {
+  const token = sessionStorage.getItem('authToken');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 // Machine API Service
 export const machineService = {
@@ -96,7 +102,8 @@ export const machineService = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          ...getAuthHeader()
         },
         body: JSON.stringify(machineData),
       });
@@ -128,6 +135,7 @@ export const machineService = {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          ...getAuthHeader()
         },
         body: JSON.stringify(machineData),
       });
@@ -141,6 +149,58 @@ export const machineService = {
       return data;
     } catch (error) {
       console.error('Error updating machine:', error);
+      throw error;
+    }
+  },
+
+  // Serial number inventory (machines with available/sold serials + totals)
+  // params: { search, filter, page, limit }
+  getSerialInventory: async (params = {}) => {
+    try {
+      const cleanParams = {};
+      Object.keys(params).forEach(key => {
+        if (params[key] !== undefined && params[key] !== '' && params[key] !== 'all') {
+          cleanParams[key] = params[key];
+        }
+      });
+      const queryString = new URLSearchParams(cleanParams).toString();
+      const response = await fetch(`${API_BASE_URL}/machines/serial-inventory${queryString ? `?${queryString}` : ''}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch serial number inventory');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching serial inventory:', error);
+      throw error;
+    }
+  },
+
+  // Add serial numbers to an existing machine
+  // payload: { serialNumbers: string[], increaseQuantity: boolean }
+  addSerialNumbers: async (id, payload) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/machines/${id}/serial-numbers`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...getAuthHeader()
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to add serial numbers');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error adding serial numbers:', error);
       throw error;
     }
   },

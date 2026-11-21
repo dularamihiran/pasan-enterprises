@@ -8,10 +8,12 @@ import {
   DocumentArrowDownIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
-  TrashIcon
+  TrashIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline';
 import { generateQuotationPDF } from '../services/quotationService';
-import { machineAPI, customerAPI, handleApiError } from '../services/apiService';
+import PastQuotations from '../components/PastQuotations';
+import { machineAPI, customerAPI, quotationAPI, handleApiError } from '../services/apiService';
 
 const Quotation = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -34,6 +36,7 @@ const Quotation = () => {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [showPastQuotations, setShowPastQuotations] = useState(false);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -324,9 +327,30 @@ const Quotation = () => {
     try {
       setProcessing(true);
 
+      const validExtras = extras.filter(extra => extra.description && extra.amount > 0);
+
+      // 1. Save quotation to the database (images are not sent/saved)
+      let savedQuotation;
+      try {
+        const saveResponse = await quotationAPI.create({
+          customerInfo,
+          items: quotationItems.map(({ images, ...item }) => item),
+          extras: validExtras,
+          discountAmount: getDiscountAmount()
+        });
+        savedQuotation = saveResponse.data.data;
+      } catch (saveErr) {
+        const errorInfo = handleApiError(saveErr);
+        setError(`Failed to save quotation: ${saveErr.userMessage || errorInfo.message}`);
+        setTimeout(() => setError(''), 5000);
+        return;
+      }
+
+      // 2. Generate the PDF using the saved quotation number
       const quotationData = {
+        quotationNumber: savedQuotation.quotationNumber,
         items: quotationItems,
-        extras: extras.filter(extra => extra.description && extra.amount > 0),
+        extras: validExtras,
         customerInfo,
         subtotal: getSubtotal(),
         vatAmount: getVATAmount(),
@@ -337,7 +361,7 @@ const Quotation = () => {
       const result = await generateQuotationPDF(quotationData);
 
       if (result.success) {
-        setSuccessMessage('Quotation generated successfully!');
+        setSuccessMessage(`Quotation ${savedQuotation.quotationNumber} saved and generated successfully!`);
         
         // Reset form after successful generation
         setTimeout(() => {
@@ -354,7 +378,7 @@ const Quotation = () => {
           setSuccessMessage('');
         }, 2000);
       } else {
-        setError(result.message || 'Failed to generate quotation');
+        setError(`Quotation ${savedQuotation.quotationNumber} was saved, but the PDF failed to generate: ${result.message || 'unknown error'}`);
         setTimeout(() => setError(''), 5000);
       }
     } catch (err) {
@@ -371,13 +395,26 @@ const Quotation = () => {
     setSuccessMessage('');
   };
 
+  if (showPastQuotations) {
+    return <PastQuotations onBack={() => setShowPastQuotations(false)} />;
+  }
+
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-800 to-indigo-600 bg-clip-text text-transparent">
-          Create Quotation
-        </h1>
-        <p className="text-slate-600 mt-2 text-sm sm:text-base">Generate quotations for customers</p>
+      <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-800 to-indigo-600 bg-clip-text text-transparent">
+            Create Quotation
+          </h1>
+          <p className="text-slate-600 mt-2 text-sm sm:text-base">Generate quotations for customers</p>
+        </div>
+        <button
+          onClick={() => setShowPastQuotations(true)}
+          className="inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white rounded-xl hover:scale-105 transition-all duration-200 font-medium shadow-lg"
+        >
+          <ClockIcon className="w-5 h-5 mr-2" />
+          View Past Quotations
+        </button>
       </div>
 
       {error && (

@@ -6,7 +6,7 @@ require('dotenv').config();
 const connectDB = require('./db');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // Middleware
 // Allow origins from environment variable or defaults
@@ -65,6 +65,7 @@ const pastOrderRoutes = require('./routes/pastOrders');
 const dashboardRoutes = require('./routes/dashboard');
 const categoriesRoutes = require('./routes/categories');
 const refundRoutes = require('./routes/refunds');
+const quotationRoutes = require('./routes/quotations');
 
 // Use routes
 app.use('/api/users', userRoutes);
@@ -76,6 +77,7 @@ app.use('/api/past-orders', pastOrderRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/categories', categoriesRoutes);
 app.use('/api/refunds', refundRoutes);
+app.use('/api/quotations', quotationRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

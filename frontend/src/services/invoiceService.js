@@ -294,7 +294,24 @@ export const generateInvoice = async (saleData, orderData) => {
       doc.text(formatNumberWithCommas(itemTotal), colPositions[5] + 20, yPosition, { align: 'right' });
       
       yPosition += 5;
-      
+
+      // Display serial numbers of the units sold, if any
+      const serialNumbers = (cartItem.serialNumbers?.length ? cartItem.serialNumbers : item.serialNumbers) || [];
+      if (serialNumbers.length > 0) {
+        checkNewPage(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        const serialText = `S/N: ${serialNumbers.join(', ')}`;
+        const maxSerialWidth = (pageWidth - 15) - colPositions[1];
+        const serialLines = doc.splitTextToSize(serialText, maxSerialWidth);
+        serialLines.forEach((line) => {
+          checkNewPage(5);
+          doc.text(line, colPositions[1], yPosition);
+          yPosition += 4;
+        });
+        doc.setFontSize(8);
+      }
+
       // Display machine note if it exists
       const machineNote = cartItem.note || item.note || '';
       if (machineNote.trim()) {
@@ -536,11 +553,24 @@ export const generateInvoice = async (saleData, orderData) => {
     });
     
     const uniqueWarranties = [...new Set(warranties)];
-    
+
+    // Warranty starts from the invoice date, unless the items are delivered later
+    let warrantyStartText = 'FROM INVOICE DATE';
+    if (saleData.deliveryType === 'later') {
+      if (saleData.deliveryDate) {
+        const d = new Date(saleData.deliveryDate);
+        const dd = d.getDate().toString().padStart(2, '0');
+        const mm = (d.getMonth() + 1).toString().padStart(2, '0');
+        warrantyStartText = `FROM DELIVERY DATE (${dd}/${mm}/${d.getFullYear()})`;
+      } else {
+        warrantyStartText = 'FROM DELIVERY DATE';
+      }
+    }
+
     if (uniqueWarranties.length === 1) {
-      doc.text(`${uniqueWarranties[0]} MONTHS FROM INVOICE DATE`, 15, yPosition);
+      doc.text(`${uniqueWarranties[0]} MONTHS ${warrantyStartText}`, 15, yPosition);
     } else {
-      doc.text('VARIABLE WARRANTY PERIODS AS SPECIFIED PER ITEM:', 15, yPosition);
+      doc.text(`VARIABLE WARRANTY PERIODS AS SPECIFIED PER ITEM (${warrantyStartText}):`, 15, yPosition);
       yPosition += 5;
       saleData.items.forEach((item, index) => {
         const cartItem = saleData.cart?.find(c => c.machineId === item.machineId) || item;

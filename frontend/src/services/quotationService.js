@@ -104,8 +104,8 @@ export const generateQuotationPDF = async (quotationData) => {
     let yPosition = 20;
     let currentPage = 1;
     
-    // Generate unique quotation ID
-    const quotationId = `QT-${Date.now()}`;
+    // Use the quotation number saved in the database (fallback to a generated one)
+    const quotationId = quotationData.quotationNumber || `QT-${Date.now()}`;
     
     // Load logo
     let logoBase64 = null;
@@ -177,7 +177,8 @@ export const generateQuotationPDF = async (quotationData) => {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     
-    const currentDate = new Date();
+    // Use the original quotation date when regenerating a saved quotation
+    const currentDate = quotationData.quotationDate ? new Date(quotationData.quotationDate) : new Date();
     const quotationDate = `${currentDate.getDate().toString().padStart(2, '0')}/${(currentDate.getMonth() + 1).toString().padStart(2, '0')}/${currentDate.getFullYear()}`;
     const quotationTime = currentDate.toLocaleTimeString();
     

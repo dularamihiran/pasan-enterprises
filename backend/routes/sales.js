@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { authenticateToken } = require('../middleware/auth');
 const {
   processSale,
   validateSale,
@@ -17,8 +18,8 @@ router.post('/validate', validateSale);
 router.get('/stats', getSalesStats);
 
 // @route   POST /api/sales
-// @desc    Process a sale
-// @access  Public
-router.post('/', processSale);
+// @desc    Process a sale (processedBy is taken from the logged-in user)
+// @access  Private
+router.post('/', authenticateToken, processSale);
 
 module.exports = router;

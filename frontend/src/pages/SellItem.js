@@ -12,6 +12,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { machineAPI, salesAPI, customerAPI, handleApiError } from '../services/apiService';
 import { generateInvoice } from '../services/invoiceService';
+import { dateInputToISO, toDateInputValue } from '../utils/delivery';
 
 const SellItem = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,6 +52,9 @@ const SellItem = () => {
   const [paymentPeriodDays, setPaymentPeriodDays] = useState(60);
     const [paymentMethod, setPaymentMethod] = useState('cash');
     const [chequeNumber, setChequeNumber] = useState('');
+  // Delivery / warranty start: 'immediate' (taken on the sale date) or 'later'
+  const [deliveryType, setDeliveryType] = useState('immediate');
+  const [deliveryDate, setDeliveryDate] = useState(''); // optional, YYYY-MM-DD, only for 'later'
   // Customer VAT Number (UI only - not stored in database)
   const [customerVatNumber, setCustomerVatNumber] = useState('');
 
@@ -214,7 +218,11 @@ const SellItem = () => {
         vatPercentage: 0, // Default 0% VAT per item
         warrantyMonths: 12, // Default 12 months warranty
         availableStock: machine.quantity,
-        note: machine.description || '' // Use machine's existing description as note
+        note: machine.description || '', // Use machine's existing description as note
+        // Serial numbers in stock for this machine, and the ones chosen for this sale
+        availableSerialNumbers: [...(machine.availableSerialNumbers || [])]
+          .sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+        serialNumbers: []
       }]);
     }
   };
@@ -231,10 +239,49 @@ const SellItem = () => {
           setTimeout(() => setError(''), 3000);
           return item;
         }
-        return { ...item, quantity: newQuantity };
+        // Can't keep more serial numbers selected than units being sold
+        return {
+          ...item,
+          quantity: newQuantity,
+          serialNumbers: (item.serialNumbers || []).slice(0, newQuantity)
+        };
       }
       return item;
     }).filter(Boolean));
+  };
+
+  // Minimum serial numbers that must be selected for a cart item: units sold
+  // without a serial must come from stock that has no serial number
+  const getMinSerialsRequired = (item) => {
+    const available = item.availableSerialNumbers?.length || 0;
+    const unitsWithoutSerials = Math.max(item.availableStock - available, 0);
+    return Math.max(item.quantity - unitsWithoutSerials, 0);
+  };
+
+  const toggleCartItemSerial = (machineId, serialNumber) => {
+    setCart(cart.map(item => {
+      if (item.machineId !== machineId) return item;
+      const selected = item.serialNumbers || [];
+      if (selected.includes(serialNumber)) {
+        return { ...item, serialNumbers: selected.filter(sn => sn !== serialNumber) };
+      }
+      if (selected.length >= item.quantity) {
+        setError(`You can select up to ${item.quantity} serial number(s) for ${item.name} (the quantity being sold). Increase the quantity to add more.`);
+        setTimeout(() => setError(''), 4000);
+        return item;
+      }
+      return { ...item, serialNumbers: [...selected, serialNumber] };
+    }));
+  };
+
+  // Fill the remaining slots with the first unselected serial numbers
+  const autoFillCartItemSerials = (machineId) => {
+    setCart(cart.map(item => {
+      if (item.machineId !== machineId) return item;
+      const selected = item.serialNumbers || [];
+      const remaining = item.availableSerialNumbers.filter(sn => !selected.includes(sn));
+      return { ...item, serialNumbers: [...selected, ...remaining.slice(0, item.quantity - selected.length)] };
+    }));
   };
 
   const removeFromCart = (machineId) => {
@@ -360,7 +407,8 @@ const SellItem = () => {
           machineId: item.machineId,
           quantity: item.quantity,
           vatPercentage: item.vatPercentage,
-          warrantyMonths: item.warrantyMonths
+          warrantyMonths: item.warrantyMonths,
+          serialNumbers: item.serialNumbers || []
         })),
         extras: extras.filter(extra => extra.description && extra.amount > 0)
       };
@@ -428,6 +476,12 @@ const SellItem = () => {
       return;
     }
 
+    const missingSerials = cart.find(item => (item.serialNumbers?.length || 0) < getMinSerialsRequired(item));
+    if (missingSerials) {
+      setError(`Select at least ${getMinSerialsRequired(missingSerials)} serial number(s) for ${missingSerials.name} - all other units in stock have serial numbers.`);
+      return;
+    }
+
     try {
       setProcessing(true);
 
@@ -465,6 +519,13 @@ const SellItem = () => {
         return;
       }
 
+      if (deliveryType === 'later' && deliveryDate && deliveryDate < toDateInputValue(new Date())) {
+        setError('Delivery date cannot be before today.');
+        setProcessing(false);
+        return;
+      }
+      const deliveryDateToSend = deliveryType === 'later' ? dateInputToISO(deliveryDate) : null;
+
       const saleData = {
         customerInfo: {
           name: customerInfo.name.trim(),
@@ -478,20 +539,24 @@ const SellItem = () => {
           machineId: item.machineId,
           quantity: item.quantity,
           vatPercentage: item.vatPercentage,
-          warrantyMonths: item.warrantyMonths
+          warrantyMonths: item.warrantyMonths,
+          serialNumbers: item.serialNumbers || []
         })),
         extras: extras.filter(extra => extra.description && extra.amount > 0),
         vatRate: vatRate, // Keep for reference
         discountAmount: getDiscountAmount(),
         notes: '',
-        processedBy: 'Admin',
+        // processedBy is set on the server from the logged-in user
         // Payment metadata
         paymentType: paymentType,
         paidAmount: Math.round(paidToSend * 100) / 100,
         paymentPeriodDays: paymentType === 'partial' ? (Number(paymentPeriodDays) || 60) : 0,
         remainingAmount: Math.round((finalTotal - paidToSend) * 100) / 100,
         paymentMethod,
-        chequeNumber: paymentMethod === 'cheque' ? chequeNumber.trim() : ''
+        chequeNumber: paymentMethod === 'cheque' ? chequeNumber.trim() : '',
+        // Delivery / warranty start
+        deliveryType,
+        deliveryDate: deliveryDateToSend
       };
 
       console.log('Processing sale with data:', saleData);
@@ -515,7 +580,8 @@ const SellItem = () => {
               vatAmount: getItemVATAmount(item),
               warrantyMonths: item.warrantyMonths,
               totalWithVAT: getItemTotalWithVAT(item),
-              note: item.note || '' // Include machine note for invoice
+              note: item.note || '', // Include machine note for invoice
+              serialNumbers: item.serialNumbers || []
             })),
             cart: cart, // Include full cart data for invoice generation
             extras: extras.filter(extra => extra.description && extra.amount > 0),
@@ -529,7 +595,10 @@ const SellItem = () => {
             paymentMethod,
             chequeNumber: paymentMethod === 'cheque' ? chequeNumber.trim() : '',
             paidAmount: paymentType === 'partial' ? paidToSend : getFinalTotal(),
-            remainingAmount: paymentType === 'partial' ? Math.round((finalTotal - paidToSend) * 100) / 100 : 0
+            remainingAmount: paymentType === 'partial' ? Math.round((finalTotal - paidToSend) * 100) / 100 : 0,
+            // Delivery / warranty start (for warranty wording on the invoice)
+            deliveryType,
+            deliveryDate: deliveryDateToSend
           };
 
           const invoiceResult = await generateInvoice(invoiceData, orderData);
@@ -559,7 +628,9 @@ const SellItem = () => {
         setPaymentPeriodDays(60);
         setPaymentMethod('cash');
         setChequeNumber('');
-        
+        setDeliveryType('immediate');
+        setDeliveryDate('');
+
         // Refresh machines to get updated stock
         await fetchMachines();
         
@@ -680,6 +751,11 @@ const SellItem = () => {
                           <div className="flex items-center gap-2 mb-1">
                             <h4 className="font-semibold text-slate-800 text-sm">{machine.name}</h4>
                             <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">ID: {machine.itemId}</span>
+                            {machine.availableSerialNumbers?.length > 0 && (
+                              <span className="text-xs text-blue-700 bg-blue-50 border border-blue-100 px-2 py-1 rounded">
+                                {machine.availableSerialNumbers.length} serial no.
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center justify-between">
                             <span className="text-base font-bold text-slate-800">Rs. {machine.price.toFixed(2)}</span>
@@ -808,6 +884,64 @@ const SellItem = () => {
                           </div>
                           <span className="text-xs text-slate-500">Stock: {item.availableStock}</span>
                         </div>
+
+                        {/* Serial Number Selection */}
+                        {item.availableSerialNumbers?.length > 0 && (() => {
+                          const selected = item.serialNumbers || [];
+                          const minRequired = getMinSerialsRequired(item);
+                          return (
+                            <div className="mb-3 p-2 bg-blue-50/60 border border-blue-100 rounded">
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-xs font-medium text-slate-700">
+                                  Serial Numbers ({item.availableSerialNumbers.length} available)
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-xs font-medium ${
+                                    selected.length < minRequired ? 'text-amber-700' : 'text-slate-600'
+                                  }`}>
+                                    Selected {selected.length} / {item.quantity}
+                                  </span>
+                                  {selected.length < item.quantity && selected.length < item.availableSerialNumbers.length && (
+                                    <button
+                                      type="button"
+                                      onClick={() => autoFillCartItemSerials(item.machineId)}
+                                      className="text-xs text-blue-600 hover:text-blue-800 underline"
+                                    >
+                                      Auto-fill
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-1 max-h-28 overflow-y-auto">
+                                {item.availableSerialNumbers.map(sn => {
+                                  const isSelected = selected.includes(sn);
+                                  const isDisabled = !isSelected && selected.length >= item.quantity;
+                                  return (
+                                    <button
+                                      type="button"
+                                      key={sn}
+                                      onClick={() => toggleCartItemSerial(item.machineId, sn)}
+                                      className={`font-mono text-xs px-2 py-1 rounded border transition-colors ${
+                                        isSelected
+                                          ? 'bg-blue-600 text-white border-blue-600'
+                                          : isDisabled
+                                            ? 'bg-white text-slate-400 border-slate-200 cursor-not-allowed'
+                                            : 'bg-white text-slate-700 border-slate-300 hover:border-blue-400'
+                                      }`}
+                                    >
+                                      {sn}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              {selected.length < minRequired && (
+                                <p className="text-xs text-amber-700 mt-2">
+                                  Select at least {minRequired} serial number(s) - only {Math.max(item.availableStock - item.availableSerialNumbers.length, 0)} unit(s) in stock have no serial number.
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         {/* Price Breakdown */}
                         <div className="space-y-2 mb-3 bg-slate-50 p-2 rounded">
@@ -1189,6 +1323,40 @@ const SellItem = () => {
             </div>
           )}
 
+        </div>
+
+        {/* Delivery / Warranty Start */}
+        <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+          <div className="md:col-span-1">
+            <label className="block text-sm font-medium text-slate-700 mb-2">Delivery (Warranty Start)</label>
+            <select
+              value={deliveryType}
+              onChange={(e) => {
+                setDeliveryType(e.target.value);
+                if (e.target.value === 'immediate') setDeliveryDate('');
+              }}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white/50"
+            >
+              <option value="immediate">Delivered today (warranty starts now)</option>
+              <option value="later">Not delivered yet (warranty starts on delivery)</option>
+            </select>
+          </div>
+
+          {deliveryType === 'later' && (
+            <div className="md:col-span-1">
+              <label className="block text-sm font-medium text-slate-700 mb-2">Delivery Date (Optional)</label>
+              <input
+                type="date"
+                value={deliveryDate}
+                min={toDateInputValue(new Date())}
+                onChange={(e) => setDeliveryDate(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white/50"
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Leave empty if not finalized - it can be set later on the Past Orders page.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Complete Sale Button */}

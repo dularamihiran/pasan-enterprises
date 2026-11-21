@@ -52,6 +52,27 @@ const authenticateToken = async (req, res, next) => {
   }
 };
 
+// Middleware that attaches the logged-in user (req.user) when a valid token is
+// present, but never rejects the request. Use for endpoints that must keep
+// working for callers without a token.
+const optionalAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (token) {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret-key');
+      const user = await User.findById(decoded.userId).select('-password');
+      if (user && user.isActive) {
+        req.user = user;
+        req.userId = decoded.userId;
+      }
+    }
+  } catch (error) {
+    // Invalid/expired token: continue without a user
+  }
+  next();
+};
+
 // Middleware to check user roles
 const authorizeRoles = (...roles) => {
   return (req, res, next) => {
@@ -75,5 +96,6 @@ const authorizeRoles = (...roles) => {
 
 module.exports = {
   authenticateToken,
+  optionalAuth,
   authorizeRoles
 };

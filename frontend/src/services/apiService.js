@@ -9,7 +9,7 @@ const getBaseURL = () => {
   
   // Check if running on localhost (development)
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return 'http://localhost:5000/api';
+    return 'http://localhost:5001/api';
   }
   // Production URL fallback
   return 'https://pasan-enterprises-whk8.onrender.com/api';
@@ -163,6 +163,8 @@ export const pastOrdersAPI = {
   update: (orderId, data) => api.put(`/past-orders/${orderId}`, data),
   // Update payment for an order
   updatePayment: (orderId, data) => api.patch(`/past-orders/${orderId}/payment`, data),
+  // Set/clear delivery date (warranty start). data: { deliveryDate: 'YYYY-MM-DD' | null }
+  updateDelivery: (orderId, data) => api.patch(`/past-orders/${orderId}/delivery`, data),
 };
 
 // Refund API
@@ -184,6 +186,15 @@ export const refundAPI = {
   
   // Get refund statistics
   getStats: () => api.get('/refunds/stats/summary'),
+};
+
+// Quotation API
+export const quotationAPI = {
+  // Save a new quotation (creator is taken from the logged-in user's token)
+  create: (data) => api.post('/quotations', data),
+
+  // Get saved quotations with pagination/search: { page, limit, search }
+  getAll: (params = {}) => api.get('/quotations', { params }),
 };
 
 // User API
